@@ -4,15 +4,8 @@
 
 Vio is a revolutionary AI-powered learning platform that transforms any content into personalized educational experiences. Built for VirtuHack 2025, Vio breaks down barriers between different content formats and creates adaptive, intelligent learning paths that adapt to individual needs and learning styles.
 
-## 🏆 Hackathon Track Alignment
 
-- ✅ **AI in Education** - Multi-model AI with intelligent learning paths
-- ✅ **Learning Accessibility** - Universal content support with OCR
-- ✅ **Gamified Education** - Interactive quizzes and performance analytics
-- ✅ **Tools for Teachers** - Content management and automated assessment
-- ✅ **Student Productivity & Wellness** - Personalized learning experiences
-
-## 🚀 Key Features
+## Key Features
 
 ### **Universal Content Processing**
 - **Multi-format Support**: Seamlessly process PDFs, Word documents, PowerPoint presentations, Excel files, images, YouTube videos, and web links
@@ -32,12 +25,12 @@ Vio is a revolutionary AI-powered learning platform that transforms any content 
 - **Learning Analytics**: Comprehensive dashboards showing learning trends and progress
 
 ### **Educational Content Creation**
-- **Video Script Generation**: Transform your content into engaging educational video scripts
+- **Video Generation**: Transform your content into engaging educational video scripts and videos
 - **Interactive Study Interface**: Real-time question answering with immediate feedback
 - **Research Assistant**: Conduct comprehensive research across all your materials
 - **Study Session Orchestrator**: Create adaptive study sessions that evolve with your progress
 
-## 🎯 Educational Impact
+##  Educational Impact
 
 ### **For Students**
 - **Personalized Learning**: Every student gets a learning experience tailored to their needs, pace, and preferences
@@ -45,19 +38,8 @@ Vio is a revolutionary AI-powered learning platform that transforms any content 
 - **Progress Visibility**: Clear insights into learning progress and areas for improvement
 - **Engagement**: Interactive quizzes, adaptive sessions, and AI-powered assistance keep learning engaging
 
-### **For Educators**
-- **Content Flexibility**: Use any existing materials without reformatting or restructuring
-- **Student Insights**: Detailed analytics help identify students who need additional support
-- **Automated Assessment**: AI-generated quizzes save time while providing comprehensive evaluation
-- **Learning Path Creation**: Easily create structured learning experiences from diverse content
 
-### **For Institutions**
-- **Scalable Solution**: Handle thousands of students and massive content libraries efficiently
-- **Cost Effective**: Reduce the need for multiple specialized tools and platforms
-- **Data-Driven Insights**: Comprehensive analytics for curriculum improvement and student success
-- **Accessibility Compliance**: Built-in support for diverse learning needs and assistive technologies
-
-## 🛠️ Technical Excellence
+## Technical Excellence
 
 ### **Frontend**
 - **Next.js 14** - Modern React framework with server-side rendering
@@ -479,30 +461,6 @@ This architecture enables seamless content processing, intelligent search, and p
 **DELETE /api/dashboard/research-queries/[id]** - Delete research query
 **DELETE /api/dashboard/study-sessions/[id]** - Delete study session
 
-## 🏆 VirtuHack 2025 Judging Criteria
-
-### **Educational Impact (40%)** ✅
-- **Real Problem Solving**: Addresses content fragmentation and personalization challenges in education
-- **Measurable Outcomes**: 40% reduction in content search time, 60% improvement in comprehension
-- **Accessibility Improvements**: Universal content support and multi-format learning
-- **User Benefits**: Clear value proposition for students, educators, and institutions
-
-### **Innovation & Creativity (30%)** ✅
-- **Novel Approach**: Universal content processing with AI-powered learning
-- **Technical Innovation**: Multi-model AI architecture with intelligent fallbacks
-- **Creative Solutions**: Adaptive learning engine and personalized content delivery
-- **Unique Features**: Research assistant, video generation, and study orchestration
-
-### **Functionality (20%)** ✅
-- **Working Prototype**: Fully functional application with all core features
-- **Technical Soundness**: Robust error handling and user feedback
-- **User Experience**: Intuitive interface and smooth user workflows
-- **Performance**: Fast response times and reliable operation
-
-### **Submission Completeness (10%)** ✅
-- **All Required Components**: Project description, demo video, code repository, screenshots
-- **Complete Documentation**: Comprehensive setup and usage guides
-- **Professional Presentation**: High-quality materials and clear communication
 
 ## Recent Updates & Improvements
 
@@ -532,65 +490,59 @@ This architecture enables seamless content processing, intelligent search, and p
 **Performance**: Optimized database queries and response times
 **Security**: Enhanced user authentication and data protection
 
-## 🚀 Quick Start
+## Getting Started
 
 ### Prerequisites
-- **Node.js 18+** - Ensure you have Node.js installed
-- **TiDB Cloud Account** - Sign up at [TiDB Cloud](https://tidbcloud.com/)
-- **AI API Keys** - At least one of: Groq, OpenAI, or Google Gemini
+
+Node.js 18+
+TiDB Cloud account
+Appwrite account
+Groq API key (primary) OR OpenAI API key (fallback)
+Google Generative AI API key (for Gemini)
 
 ### Installation
 
-1. **Clone the Repository**
+Clone the repository:
+
 ```bash
-git clone https://github.com/your-username/vio.git
-cd vio
+git clone https://github.com/AdarshSingh-ASR/Vio-AI-Native-Learning-Companion
+cd Vio
 ```
 
-2. **Install Dependencies**
+Install dependencies:
+
 ```bash
 npm install
 ```
 
-3. **Environment Setup**
+Set up environment variables:
+
 ```bash
 cp .env.example .env.local
 ```
 
-4. **Configure Environment Variables**
-```env
-# TiDB Configuration
-TIDB_HOST=your-cluster-endpoint.tidbcloud.com
-TIDB_PORT=4000
-TIDB_USER=your-username
-TIDB_PASSWORD=your-password
-TIDB_DATABASE=vio_database
+Update the .env.local file with your:
 
-# AI Services (at least one required)
-GROQ_API_KEY=your-groq-key
-OPENAI_API_KEY=your-openai-key
-GEMINI_API_KEY=your-gemini-key
-```
+Appwrite credentials
+TiDB connection string
+Groq API key (or OpenAI API key)
+Google Generative AI API key
+Tavily API Key
+Firecrawl API Key
 
-5. **Database Setup**
+Run database setup:
+
 ```bash
 npm run setup:tidb
 ```
 
-6. **Start the Application**
+Start the development server:
+
 ```bash
 npm run dev
 ```
 
-7. **Access the Application**
-Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-### Demo Scenarios
-- **Content Upload**: Upload PDFs, videos, and web links
-- **AI Chat**: Ask questions about your content
-- **Quiz Generation**: Create quizzes from any content
-- **Learning Paths**: Generate personalized study plans
-- **Advanced Features**: Research assistant and video generation
 
 ### Bug Fixes
 Fixed search functionality returning 0 results
@@ -621,17 +573,16 @@ Enhanced delete operation security and user verification
 
 Contributions are welcome! Please feel free to submit a Pull Request.
 
-## 🎯 Hackathon Submission
+## Hackathon Submission
 
 **Event**: VirtuHack 2025  
-**Tracks**: AI in Education, Learning Accessibility, Gamified Education, Tools for Teachers, Student Productivity & Wellness  
-**Submission Date**: September 2025  
+**Tracks**: AI in Education, Learning Accessibility, Gamified Education, Student Productivity & Wellness 
 
-## 📞 Contact & Support
+## Contact & Support
 
-- **GitHub Repository**: [https://github.com/your-username/vio](https://github.com/your-username/vio)
-- **Demo Video**: [YouTube Link](https://youtube.com/watch?v=your-demo-video)
-- **Live Demo**: [https://vio-demo.vercel.app](https://vio-demo.vercel.app)
+- **GitHub Repository**: [https://github.com/AdarshSingh-ASR/Vio-AI-Native-Learning-Companion](https://github.com/AdarshSingh-ASR/Vio-AI-Native-Learning-Companion)
+- **Demo Video**: [YouTube Link](https://youtu.be/lLkZf7WeHXY)
+- **Live Demo**: [https://vio-demo.vercel.app](https://vio-kv55.onrender.com/)
 
 ## 📄 License
 
@@ -642,3 +593,4 @@ This project is created for VirtuHack 2025. All rights reserved.
 **Built with ❤️ for the future of education**
 
 *Technologies: Next.js 14, TiDB, Appwrite, Groq AI, OpenAI, Google Gemini, TypeScript, Tailwind CSS*
+ 
