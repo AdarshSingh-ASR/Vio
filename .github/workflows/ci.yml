@@ -31,10 +31,11 @@ jobs:
           python-version: "3.11"
       - run: pip install -r services/agent/requirements-dev.txt
       - run: python -m compileall services/agent/app
-      - run: pytest -p pytest_asyncio.plugin
+      - run: python -m pytest -p pytest_asyncio.plugin
         working-directory: services/agent
         env:
           PYTEST_DISABLE_PLUGIN_AUTOLOAD: "1"
+          PYTHONPATH: ${{ github.workspace }}/services/agent
       - run: ruff check app tests
         working-directory: services/agent
       - run: mypy app
