@@ -25,4 +25,4 @@ export const extractContent = async (urls: string[]) => {
     console.error("Tavily extract error:", error);
     throw error;
   }
-}; 
+};
