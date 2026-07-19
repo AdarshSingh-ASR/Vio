@@ -1,14 +1,15 @@
 import { tavily } from "@tavily/core";
 
-// Initialize Tavily client
-export const tvly = tavily({ 
-  apiKey: process.env.TAVILY_API_KEY!,
-});
+const getClient = () => {
+  const apiKey = process.env.TAVILY_API_KEY?.trim();
+  if (!apiKey) throw new Error("Tavily web search is not configured. Set TAVILY_API_KEY to enable it.");
+  return tavily({ apiKey });
+};
 
 // Helper functions for common operations
 export const searchWeb = async (query: string, options?: any) => {
   try {
-    const response = await tvly.search(query, options);
+    const response = await getClient().search(query, options);
     return response;
   } catch (error) {
     console.error("Tavily search error:", error);
@@ -18,7 +19,7 @@ export const searchWeb = async (query: string, options?: any) => {
 
 export const extractContent = async (urls: string[]) => {
   try {
-    const response = await tvly.extract(urls);
+    const response = await getClient().extract(urls);
     return response;
   } catch (error) {
     console.error("Tavily extract error:", error);
