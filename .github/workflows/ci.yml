@@ -13,7 +13,7 @@ jobs:
         with:
           node-version: 20
           cache: npm
-      - run: npm ci
+      - run: npm ci --include=optional
       - run: npm run type-check
       - run: npm test
       - run: npm run lint
