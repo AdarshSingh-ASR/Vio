@@ -1,4 +1,5 @@
 "use client";
+/* eslint-disable @next/next/no-img-element -- previews use expiring authenticated Appwrite URLs and arbitrary external link images that cannot be safely proxied by Next Image */
 import React, { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
@@ -9,7 +10,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useChatSheet } from "@/context/ChatSheetContext";
 import { useSidebarSheet } from "@/context/SidebarContext";
 import { useAuth } from "@/context/AuthContext";
-import ReactMarkdown from 'react-markdown';
+import { Streamdown } from "streamdown";
 
 const FileViewer = dynamic(() => import('@/components/FileViewer'), { ssr: false });
 
@@ -680,38 +681,7 @@ const FolderItemViewerPage = () => {
                         <span className="text-sm font-medium text-foreground">Gemini AI Summary</span>
                       </div>
                       <div className="max-h-32 md:max-h-40 overflow-y-auto overflow-x-hidden">
-                        <ReactMarkdown 
-                          className="prose prose-sm max-w-none dark:prose-invert prose-headings:text-foreground prose-p:text-foreground prose-strong:text-foreground prose-code:text-foreground prose-pre:bg-muted prose-pre:text-foreground prose-ul:text-foreground prose-ol:text-foreground prose-li:text-foreground"
-                          components={{
-                            p: ({ children }) => <p className="mb-2 last:mb-0 text-sm">{children}</p>,
-                            h1: ({ children }) => <h1 className="text-lg font-bold mb-2 text-foreground">{children}</h1>,
-                            h2: ({ children }) => <h2 className="text-base font-bold mb-2 text-foreground">{children}</h2>,
-                            h3: ({ children }) => <h3 className="text-sm font-bold mb-1 text-foreground">{children}</h3>,
-                            ul: ({ children }) => <ul className="list-disc list-inside mb-2 space-y-1 text-sm">{children}</ul>,
-                            ol: ({ children }) => <ol className="list-decimal list-inside mb-2 space-y-1 text-sm">{children}</ol>,
-                            li: ({ children }) => <li className="text-sm">{children}</li>,
-                            code: ({ children, className }) => {
-                              const isInline = !className?.includes('language-');
-                              if (isInline) {
-                                return <code className="bg-muted px-1 py-0.5 rounded text-xs font-mono text-foreground">{children}</code>;
-                              }
-                              return (
-                                <pre className="bg-muted p-2 rounded text-xs overflow-x-auto">
-                                  <code className="text-foreground">{children}</code>
-                                </pre>
-                              );
-                            },
-                            blockquote: ({ children }) => (
-                              <blockquote className="border-l-2 border-muted-foreground pl-2 italic text-sm mb-2">
-                                {children}
-                              </blockquote>
-                            ),
-                            strong: ({ children }) => <strong className="font-semibold text-foreground">{children}</strong>,
-                            em: ({ children }) => <em className="italic text-foreground">{children}</em>,
-                          }}
-                        >
-                          {summary}
-                        </ReactMarkdown>
+                        <Streamdown mode="static" className="prose prose-sm max-w-none dark:prose-invert" controls={{ code: true, table: true }} linkSafety={{ enabled: true }}>{summary}</Streamdown>
                       </div>
                     </div>
                   )}
@@ -779,4 +749,4 @@ const FolderItemViewerPage = () => {
   );
 };
 
-export default FolderItemViewerPage; 
+export default FolderItemViewerPage;

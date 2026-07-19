@@ -1,11 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedServices } from '@/lib/appwrite-server';
-import { GoogleGenerativeAI } from '@google/generative-ai';
 import * as mammoth from 'mammoth';
 import { dashboardItemService, userService } from '@/lib/tidb-service';
-
-// Initialize Gemini (mandatory AI framework)
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY!);
+import { generateCentralText } from '@/lib/central-ai';
 
 // Helper function to extract file ID from Appwrite URL
 function extractFileId(url: string): string {
@@ -49,13 +46,14 @@ function extractFileId(url: string): string {
   }
 }
 
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   console.log('🚀 SUMMARY ENDPOINT HIT! Raw params:', params);
   console.log('🚀 Request URL:', req.url);
-  
+
   try {
     // Get authenticated services with JWT
-    const { databases, user, storage } = await getAuthenticatedServices(req);
+    const { user, storage } = await getAuthenticatedServices(req);
     const userId = user.$id;
     const itemId = params.id;
     
@@ -274,8 +272,7 @@ Please try:
           processingDetails = `Critical PDF error: ${errorCategory}`;
         }
       } else if (fileType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' || 
-                 fileType === 'application/vnd.ms-excel' || 
-                 fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
+                 fileName.endsWith('.xlsx')) {
         // Parse Excel
         contentType = 'Excel spreadsheet';
         console.log('📊 Parsing Excel file...');
@@ -290,16 +287,8 @@ Please try:
           const uint8Array = new Uint8Array(fileBuffer);
           const buffer = Buffer.from(uint8Array);
           
-          // Extract text using XLSX
-          const XLSX = await import('xlsx');
-          const workbook = XLSX.read(buffer, { type: 'buffer' });
-          let content = '';
-          workbook.SheetNames.forEach(sheetName => {
-            const sheet = workbook.Sheets[sheetName];
-            const sheetData = XLSX.utils.sheet_to_csv(sheet);
-            content += `Sheet: ${sheetName}\n${sheetData}\n\n`;
-          });
-          extractedContent = content;
+          const { excelSheetsToText, readExcelWorkbook } = await import('@/lib/excel-processor');
+          extractedContent = excelSheetsToText(await readExcelWorkbook(buffer));
           processingDetails = `Excel parsing: ${extractedContent.length} characters extracted`;
           console.log('✅ Excel parsed successfully:', processingDetails);
           
@@ -385,14 +374,6 @@ Created: ${new Date(item.createdAt).toLocaleDateString()}`;
       console.log('🤖 Generating AI summary with Gemini...');
       
       try {
-        const model = genAI.getGenerativeModel({ 
-          model: "gemini-2.0-flash-exp",
-          generationConfig: {
-            maxOutputTokens: 1000,
-            temperature: 0.7,
-          },
-        });
-
         const prompt = `Please provide a comprehensive and well-structured summary of the following ${contentType}. Use proper markdown formatting to make it visually appealing and easy to read.
 
 **Requirements:**
@@ -411,9 +392,11 @@ ${extractedContent.substring(0, 15000)}${extractedContent.length > 15000 ? '...[
 
 Please create a well-formatted markdown summary that captures the essence of this content:`;
 
-        const result = await model.generateContent(prompt);
-        const response = await result.response;
-        summary = response.text() || 'Unable to generate summary.';
+        const result = await generateCentralText(dbUser.id, [
+          { role: 'system', content: 'You are a careful education assistant. Produce grounded summaries and never invent details not present in the source.' },
+          { role: 'user', content: prompt }
+        ], { maxTokens: 1000, temperature: 0.7 });
+        summary = result.content || 'Unable to generate summary.';
         
         console.log('✅ AI summary generated successfully');
         
@@ -510,4 +493,4 @@ function getContentTypeDescription(contentType: string): string {
     default:
       return 'content';
   }
-} 
+}

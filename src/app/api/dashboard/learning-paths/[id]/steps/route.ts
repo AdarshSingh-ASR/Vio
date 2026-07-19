@@ -2,10 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/appwrite-server';
 import { userService, learningPathService, learningStepService } from '@/lib/tidb-service';
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function GET(request: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     // Get current user from JWT
     const appwriteUser = await getCurrentUser(request);

@@ -1,5 +1,4 @@
-import { Client, Databases, Account, Storage, Users } from 'node-appwrite';
-import { cookies } from "next/headers";
+import { Client, Account, Storage, Users } from 'node-appwrite';
 
 // Types for our app
 interface AppwriteUser {
@@ -35,9 +34,7 @@ const createServerClient = () => {
 export const serverClient = createServerClient();
 
 // Create Appwrite services
-export const databases = new Databases(serverClient);
 export const storage = new Storage(serverClient);
-export const serverAccount = new Account(serverClient);
 export const users = new Users(serverClient);
 
 // Helper function to transform Appwrite user to our app's user format
@@ -77,7 +74,6 @@ export const createAuthenticatedClient = (jwt: string) => {
   return {
     client: authClient,
     account: new Account(authClient),
-    databases: new Databases(authClient),
     storage: new Storage(authClient)
   };
 };
@@ -97,8 +93,6 @@ export const getCurrentUser = async (request: Request) => {
     
     // Get current user
     const user = await account.get();
-    console.log('Server-side user authenticated via JWT:', user.email);
-    
     return user;
   } catch (error) {
     console.error('Server-side authentication failed:', error);
@@ -119,8 +113,6 @@ export const getAuthenticatedServices = async (request: Request) => {
     
     // Verify the JWT works by getting the user
     const user = await services.account.get();
-    console.log('Authenticated services created for user:', user.email);
-    
     return {
       ...services,
       user
@@ -153,4 +145,4 @@ export const verifyAuth = async (): Promise<AppwriteUser | null> => {
   } catch (error) {
     return null;
   }
-}; 
+};

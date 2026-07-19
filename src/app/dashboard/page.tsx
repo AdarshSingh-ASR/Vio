@@ -1,4 +1,5 @@
 'use client';
+/* eslint-disable @next/next/no-img-element -- previews use expiring authenticated Appwrite URLs and arbitrary external link images that cannot be safely proxied by Next Image */
 import React, { useEffect, useState, ChangeEvent, FormEvent, useRef, useCallback, useMemo, Suspense } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Trash, MoreVertical, X, Loader2, Pencil, Star, FolderPlus, ArrowUp, ArrowDown, Upload } from 'lucide-react';
@@ -8,6 +9,7 @@ import { useFolders } from '@/context/FoldersContext';
 import { useRouter } from 'next/navigation';
 import { useAuth } from "@/context/AuthContext";
 import { clearOldJWTFormat } from '@/lib/appwrite-client';
+import { uploadClassroomFilesDirect } from '@/lib/classroom-upload-client';
 
 interface DashboardItem {
   $id?: string;
@@ -164,15 +166,15 @@ const DashboardPageContent = () => {
     setErrorMsg(null);
     
     try {
-      const formData = new FormData();
-      if (file) formData.append('file', file);
-      if (input) formData.append('link', input);
-      
-      const res = await authFetch('/api/dashboard/upload', {
-        method: 'POST',
-        body: formData,
-        headers: {}
-      });
+      let res: Response;
+      if (file) {
+        const [stored] = await uploadClassroomFilesDirect([file]);
+        res = await authFetch('/api/dashboard/upload/register', { method: 'POST', body: JSON.stringify({ fileId: stored.fileId, bucketId: stored.bucketId, displayName: file.name }) });
+      } else {
+        const formData = new FormData();
+        if (input) formData.append('link', input);
+        res = await authFetch('/api/dashboard/upload', { method: 'POST', body: formData, headers: {} });
+      }
       
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));

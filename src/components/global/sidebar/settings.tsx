@@ -30,13 +30,15 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useTheme } from "next-themes";
 import { themes } from "@/lib/themes";
-import { Check, Monitor, Moon, Palette, Sun, User, Trash2, Loader2, Save } from "lucide-react";
+import { Bot, Brain, Check, Monitor, Moon, Palette, Sun, User, Trash2, Loader2, Save } from "lucide-react";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import React, { useState, useEffect, Suspense } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
 import { clientAccount } from "@/lib/appwrite-client";
 import { useRouter, useSearchParams } from "next/navigation";
+import AIProviderSettings from "@/components/settings/AIProviderSettings";
+import MemorySettings from "@/components/settings/MemorySettings";
 
 const SettingsContentInner = () => {
   const { theme: currentTheme, setTheme } = useTheme();
@@ -75,7 +77,7 @@ const SettingsContentInner = () => {
   // Update active tab when URL parameters change
   useEffect(() => {
     const tabFromUrl = searchParams.get('tab');
-    if (tabFromUrl && (tabFromUrl === 'appearance' || tabFromUrl === 'profile')) {
+    if (tabFromUrl && ['appearance', 'profile', 'ai', 'memory'].includes(tabFromUrl)) {
       setActiveTab(tabFromUrl);
     }
   }, [searchParams]);
@@ -210,6 +212,14 @@ const SettingsContentInner = () => {
             <User className="h-4 w-4" />
             Profile
           </TabsTrigger>
+          <TabsTrigger value="ai" className="gap-2">
+            <Bot className="h-4 w-4" />
+            AI Provider
+          </TabsTrigger>
+          <TabsTrigger value="memory" className="gap-2">
+            <Brain className="h-4 w-4" />
+            Memory
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="appearance">
@@ -273,6 +283,14 @@ const SettingsContentInner = () => {
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="ai">
+          <AIProviderSettings />
+        </TabsContent>
+
+        <TabsContent value="memory">
+          <MemorySettings />
         </TabsContent>
 
         <TabsContent value="profile" className="space-y-6">
@@ -475,4 +493,4 @@ const SettingsContent = () => {
   );
 };
 
-export default SettingsContent; 
+export default SettingsContent;

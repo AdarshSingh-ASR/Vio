@@ -1,11 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/appwrite-server';
 import { userService, learningPathService, learningStepService, dashboardItemService, workspaceService } from '@/lib/tidb-service';
-import { Groq } from 'groq-sdk';
-
-const groq = new Groq({
-  apiKey: process.env.GROQ_API_KEY,
-});
+import { createCentralAIClient } from '@/lib/central-ai';
 
 export async function POST(req: NextRequest) {
   try {
@@ -20,6 +16,7 @@ export async function POST(req: NextRequest) {
     if (!dbUser) {
       return NextResponse.json({ error: 'User not found in database' }, { status: 404 });
     }
+    const groq = createCentralAIClient(dbUser.id, "learning_path");
 
     const { 
       workspaceId = 'default',
@@ -206,7 +203,7 @@ CRITICAL: You must return ONLY valid JSON. No markdown formatting, no explanatio
       learningPathData = JSON.parse(jsonString);
     } catch (parseError) {
       console.error('Failed to parse AI response:', parseError instanceof Error ? parseError.message : 'Unknown parse error');
-      console.error('AI response snippet:', analysisResponse.substring(0, 1000) + '...');        
+      console.error('Learning path provider returned malformed structured output');
       throw new Error('Invalid AI response format');
     }
 

@@ -1,0 +1,69 @@
+name: Live staging gates
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  infrastructure:
+    runs-on: ubuntu-latest
+    environment: staging
+    env:
+      TIDB_HOST: ${{ secrets.TIDB_HOST }}
+      TIDB_PORT: ${{ vars.TIDB_PORT }}
+      TIDB_USER: ${{ secrets.TIDB_USER }}
+      TIDB_PASSWORD: ${{ secrets.TIDB_PASSWORD }}
+      TIDB_DATABASE: ${{ secrets.TIDB_DATABASE }}
+      TIDB_SSL: "true"
+      NEXT_PUBLIC_APPWRITE_ENDPOINT: ${{ vars.APPWRITE_ENDPOINT }}
+      NEXT_PUBLIC_APPWRITE_PROJECT_ID: ${{ vars.APPWRITE_PROJECT_ID }}
+      NEXT_PUBLIC_APPWRITE_FILES_BUCKET_ID: ${{ vars.APPWRITE_FILES_BUCKET_ID }}
+      NEXT_PUBLIC_APPWRITE_IMAGES_BUCKET_ID: ${{ vars.APPWRITE_IMAGES_BUCKET_ID }}
+      NEXT_PUBLIC_APPWRITE_VIDEOS_BUCKET_ID: ${{ vars.APPWRITE_VIDEOS_BUCKET_ID }}
+      APPWRITE_API_KEY: ${{ secrets.APPWRITE_API_KEY }}
+      KMS_KEY_NAME: ${{ vars.KMS_KEY_NAME }}
+      CLOUD_TASKS_PROJECT: ${{ vars.GOOGLE_CLOUD_PROJECT }}
+      CLOUD_TASKS_LOCATION: ${{ vars.CLOUD_TASKS_LOCATION }}
+      CLOUD_TASKS_QUEUE: ${{ vars.CLOUD_TASKS_QUEUE }}
+      CLOUD_TASKS_INGESTION_QUEUE: ${{ vars.CLOUD_TASKS_INGESTION_QUEUE }}
+      AGENT_SERVICE_URL: ${{ vars.AGENT_SERVICE_URL }}
+      AGENT_SERVICE_REQUIRE_OIDC: "true"
+      AGENT_SHARED_SECRET: ${{ secrets.AGENT_SHARED_SECRET }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: npm }
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_TEST_SERVICE_ACCOUNT }}
+      - run: npm ci
+      - run: npm run test:integration:live
+
+  classroom-and-accessibility:
+    runs-on: ubuntu-latest
+    environment: staging
+    env:
+      E2E_BASE_URL: ${{ vars.E2E_BASE_URL }}
+      E2E_TEACHER_EMAIL: ${{ secrets.E2E_TEACHER_EMAIL }}
+      E2E_TEACHER_PASSWORD: ${{ secrets.E2E_TEACHER_PASSWORD }}
+      E2E_STUDENT_EMAIL: ${{ secrets.E2E_STUDENT_EMAIL }}
+      E2E_STUDENT_PASSWORD: ${{ secrets.E2E_STUDENT_PASSWORD }}
+      E2E_DOCUMENT_URL: ${{ secrets.E2E_DOCUMENT_URL }}
+      E2E_DOCUMENT_PATH: /tmp/vio-grounding-document.pdf
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: npm }
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: curl --fail --location --silent --show-error "$E2E_DOCUMENT_URL" --output "$E2E_DOCUMENT_PATH"
+      - run: npm run test:e2e:live
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: playwright-report

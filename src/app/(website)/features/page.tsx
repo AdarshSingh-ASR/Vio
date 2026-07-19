@@ -12,7 +12,6 @@ import {
   Smartphone,
   Users,
   BarChart,
-  Video,
   Target,
   Play,
   Mic,
@@ -38,14 +37,14 @@ export default function FeaturesPage() {
     {
       icon: MessageSquare,
       title: "Intelligent Chat",
-      description: "Chat naturally with your documents using Groq and OpenAI. Get contextual answers, generate summaries, and explore ideas with AI assistance.",
-      benefits: ["Context-aware responses", "Document-based chat", "Multi-model AI", "Real-time conversations"]
+      description: "Chat naturally with your documents using streaming, citations, persistent memory, and transparent tool calls.",
+      benefits: ["Context-aware responses", "Document-based chat", "Provider fallback", "Streaming conversations"]
     },
     {
-      icon: Video,
-      title: "Learning Script Studio",
-      description: "Generate engaging educational video scripts and video from your documents. Create structured content with examples, visuals, and quiz questions.",
-      benefits: ["AI script generation", "Educational content", "Visual elements", "Interactive quizzes"]
+      icon: Users,
+      title: "Classroom Management",
+      description: "Create classrooms, assign homework, collect versioned submissions, and combine AI evaluation with final teacher review.",
+      benefits: ["Invite links and codes", "Homework workflows", "AI evaluation", "Teacher-controlled results"]
     },
     {
       icon: CheckCircle,
@@ -223,11 +222,11 @@ export default function FeaturesPage() {
 
           <div className="text-center">
             <div className="bg-primary/10 rounded-lg p-4 w-fit mx-auto mb-4">
-              <Video className="w-6 h-6 text-primary" />
+              <Users className="w-6 h-6 text-primary" />
             </div>
             <h3 className="text-sm font-medium text-foreground mb-3">Educators & Trainers</h3>
             <p className="text-xs text-muted-foreground leading-relaxed">
-              Generate educational content, create video scripts, and develop interactive learning experiences.
+              Create classrooms and homework, review AI-assisted evaluations, and publish teacher-controlled feedback.
             </p>
           </div>
 
@@ -254,12 +253,12 @@ export default function FeaturesPage() {
             AI-generated content, and comprehensive progress tracking.
           </p>
           <div className="flex items-center justify-center gap-6 text-xs text-muted-foreground">
-            <span>🎬 Video Script Generation</span>
-            <span>🧠 Multi-AI Agents</span>
-            <span>📊 Progress Analytics</span>
+            <span>Classroom workflows</span>
+            <span>Tool-using AI agents</span>
+            <span>Progress analytics</span>
           </div>
         </div>
       </section>
     </main>
   );
-} 
+}

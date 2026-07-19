@@ -12,7 +12,7 @@ import { FoldersProvider } from '@/context/FoldersContext';
 import { SidebarProvider } from '@/context/SidebarContext';
 
 type DashboardLayoutProps = {
-  params: { workspaceId: string };
+  params: Promise<{ workspaceId: string }>;
   children: React.ReactNode;
 };
 

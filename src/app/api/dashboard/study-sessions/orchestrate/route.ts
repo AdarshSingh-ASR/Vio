@@ -1,11 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/appwrite-server';
 import { userService, studySessionService, learningPathService, learningStepService, quizResultService, dashboardItemService, workspaceService } from '@/lib/tidb-service';
-import { Groq } from 'groq-sdk';
-
-const groq = new Groq({
-  apiKey: process.env.GROQ_API_KEY,
-});
+import { createCentralAIClient } from '@/lib/central-ai';
 
 export async function POST(req: NextRequest) {
   try {
@@ -20,7 +16,6 @@ export async function POST(req: NextRequest) {
     if (!dbUser) {
       return NextResponse.json({ error: 'User not found in database' }, { status: 404 });
     }
-
     const { 
       sessionType = 'adaptive',
       learningPathId,
@@ -84,7 +79,8 @@ export async function POST(req: NextRequest) {
     const adaptiveQuestions = await generateAdaptiveQuestions(
       contentSelection,
       knowledgeAssessment,
-      sessionType
+      sessionType,
+      dbUser.id
     );
 
     // Step 5: Create real-time adaptation rules
@@ -265,8 +261,10 @@ async function selectOptimalContent(
 async function generateAdaptiveQuestions(
   contentSelection: any,
   knowledgeAssessment: any,
-  sessionType: string
+  sessionType: string,
+  userId: string
 ) {
+  const groq = createCentralAIClient(userId, "study_session");
   const questions = [];
   
   for (const doc of contentSelection.documents.slice(0, 3)) { // Limit to 3 documents

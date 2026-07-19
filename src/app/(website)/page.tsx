@@ -9,6 +9,7 @@ import { Upload, Send } from "lucide-react";
 import vector from "@/assets/images/Vector.svg"
 import { useAuth } from "@/context/AuthContext";
 import { useRouter } from "next/navigation";
+import { uploadClassroomFilesDirect } from "@/lib/classroom-upload-client";
 
 export default function Home() {
 
@@ -19,10 +20,9 @@ export default function Home() {
     "smart summaries",
     "adaptive quizzes",
     "listening tests",
-    "learning script studio",
  ];
 
-  const { user } = useAuth();
+  const { user, getAuthenticatedFetch } = useAuth();
   const isSignedIn = !!user;
   const router = useRouter();
   const [inputValue, setInputValue] = React.useState("");
@@ -34,32 +34,25 @@ export default function Home() {
     }
   };
 
-  const saveItem = async (input: string, fileName?: string, fileData?: string) => {
+  const saveItem = React.useCallback(async (input: string, fileName?: string) => {
     try {
-      const formData = new FormData();
-      
       if (file) {
-        formData.append('file', file);
-        formData.append('type', 'file');
-        formData.append('displayName', fileName || file.name);
+        const [stored] = await uploadClassroomFilesDirect([file]);
+        const response = await getAuthenticatedFetch()('/api/dashboard/upload/register', { method: 'POST', body: JSON.stringify({ fileId: stored.fileId, bucketId: stored.bucketId, displayName: fileName || file.name }) });
+        if (response.ok) router.push('/dashboard');
+        return;
       } else if (input) {
-        formData.append('url', input);
+        const formData = new FormData();
+        formData.append('link', input);
         formData.append('type', 'link');
         formData.append('displayName', input);
-      }
-
-      const response = await fetch('/api/dashboard/upload', {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (response.ok) {
-        router.push('/dashboard');
+        const response = await getAuthenticatedFetch()('/api/dashboard/upload', { method: 'POST', body: formData });
+        if (response.ok) router.push('/dashboard');
       }
     } catch (error) {
       console.error('Upload error:', error);
     }
-  };
+  }, [file, getAuthenticatedFetch, router]);
 
   // On mount, check if there's a pending upload after login
   React.useEffect(() => {
@@ -72,7 +65,7 @@ export default function Home() {
         window.sessionStorage.removeItem("pending-upload");
       }
     }
-  }, [isSignedIn]);
+  }, [isSignedIn, saveItem]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

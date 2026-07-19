@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
+/* eslint-disable @next/next/no-img-element -- document previews may be authenticated object URLs that Next Image cannot fetch server-side */
 import dynamic from 'next/dynamic';
 
 
@@ -65,23 +66,20 @@ const FileViewer: React.FC<FileViewerProps> = ({ url, fileType, fileName }) => {
       return () => { revoked = true; };
     }
 
-    // XLSX/XLS (Excel)
-    if (['xlsx', 'xls'].includes(ext) || fileType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet') {
+    // XLSX (Excel). Legacy XLS is rejected during upload.
+    if (ext === 'xlsx' || fileType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet') {
       fetch(url)
         .then(async res => {
           if (!res.ok) throw new Error('Failed to fetch file');
           const arrayBuffer = await res.arrayBuffer();
           try {
-            const XLSX = await import('xlsx');
-            const workbook = XLSX.read(arrayBuffer, { type: 'array' });
-            const sheetName = workbook.SheetNames[0];
-            const sheet = workbook.Sheets[sheetName];
-            const data = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+            const { readExcelWorkbook } = await import('@/lib/excel-processor');
+            const data = (await readExcelWorkbook(arrayBuffer))[0]?.rows || [];
             if (!revoked) setExcelTable(
               <div className="overflow-auto max-h-96">
                 <table className="min-w-full border text-xs">
                   <tbody>
-                    {(data as any[][]).map((row, i) => (
+                    {data.map((row, i) => (
                       <tr key={i}>
                         {row.map((cell, j) => (
                           <td key={j} className="border px-2 py-1">{cell !== undefined ? String(cell) : ''}</td>
@@ -188,4 +186,4 @@ const FileViewer: React.FC<FileViewerProps> = ({ url, fileType, fileName }) => {
   );
 };
 
-export default FileViewer; 
+export default FileViewer;

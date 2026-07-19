@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  application:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run type-check
+      - run: npm test
+      - run: npm run lint
+      - run: npm run build
+        env:
+          AGENT_SHARED_SECRET: ci-only-agent-secret-at-least-32-bytes
+      - run: npm audit --omit=dev --audit-level=critical
+
+  agent:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -r services/agent/requirements-dev.txt
+      - run: python -m compileall services/agent/app
+      - run: pytest -p pytest_asyncio.plugin
+        working-directory: services/agent
+        env:
+          PYTEST_DISABLE_PLUGIN_AUTOLOAD: "1"
+      - run: ruff check app tests
+        working-directory: services/agent
+      - run: mypy app
+        working-directory: services/agent
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: node --check scripts/migrate.js

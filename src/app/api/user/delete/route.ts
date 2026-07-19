@@ -1,172 +1,65 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getAuthenticatedServices } from '@/lib/appwrite-server';
-import { 
-  Query, 
-  COLLECTIONS, 
-  listDocuments, 
-  deleteDocument 
-} from '@/lib/appwrite';
-import { Users } from 'node-appwrite';
+import crypto from "crypto";
+import { NextRequest, NextResponse } from "next/server";
+
+import { getAuthenticatedServices, storage, users } from "@/lib/appwrite-server";
+import { executeQuery, executeSingle } from "@/lib/tidb";
+import { ApiError, apiErrorResponse } from "@/lib/request-auth";
+import { userService } from "@/lib/tidb-service";
+
+type FileReference = { bucket_id: string; file_id: string };
+
+async function ownedFiles(userId: string) {
+  return executeQuery<FileReference>(
+    `SELECT appwrite_bucket_id AS bucket_id, appwrite_file_id AS file_id
+       FROM dashboard_items WHERE created_by=? AND appwrite_file_id IS NOT NULL
+     UNION
+     SELECT aa.bucket_id, aa.appwrite_file_id FROM assignment_attachments aa
+       JOIN homework_assignments a ON a.id=aa.assignment_id
+       JOIN classrooms c ON c.id=a.classroom_id WHERE c.owner_user_id=?
+     UNION
+     SELECT sa.bucket_id, sa.appwrite_file_id FROM submission_attachments sa
+       JOIN submission_versions sv ON sv.id=sa.submission_version_id
+       JOIN homework_submissions hs ON hs.id=sv.submission_id WHERE hs.student_user_id=?`,
+    [userId, userId, userId],
+  );
+}
 
 export async function DELETE(request: NextRequest) {
+  const jobId = crypto.randomUUID();
+  let dbUserId: string | null = null;
   try {
-    console.log('DELETE /api/user/delete - Starting user account deletion');
-    
-    // Get authenticated services with JWT
-    const { databases, user } = await getAuthenticatedServices(request);
-    
-    console.log('User authenticated for deletion:', user.email);
-    
-    // First, get all user-related data from the database
-    
-    // Get user's dashboard items
-    const userItems = await databases.listDocuments(
-      process.env.APPWRITE_DATABASE_ID || "vio-database",
-      COLLECTIONS.DASHBOARD_ITEMS,
-      [Query.equal('userId', user.$id)]
+    const { user } = await getAuthenticatedServices(request);
+    const dbUser = await userService.getByAppwriteUserId(user.$id);
+    if (!dbUser) throw new ApiError(404, "User profile was not found", "USER_NOT_FOUND");
+    dbUserId = dbUser.id;
+    await executeSingle(
+      `INSERT INTO account_deletion_jobs (id, user_id, appwrite_user_id) VALUES (?, ?, ?)`,
+      [jobId, dbUser.id, user.$id],
     );
-    
-    console.log(`Found ${userItems.documents.length} dashboard items to delete`);
-    
-    // Get user's folders
-    const userFolders = await databases.listDocuments(
-      process.env.APPWRITE_DATABASE_ID || "vio-database",
-      COLLECTIONS.FOLDERS,
-      [Query.equal('userId', user.$id)]
-    );
-    
-    console.log(`Found ${userFolders.documents.length} folders to delete`);
-    
-    // Delete item-folder relationships for user's items
-    if (userItems.documents.length > 0) {
-      for (const item of userItems.documents) {
-        const itemFolders = await databases.listDocuments(
-          process.env.APPWRITE_DATABASE_ID || "vio-database",
-          COLLECTIONS.ITEM_FOLDERS,
-          [Query.equal('itemId', item.$id)]
-        );
-        
-        for (const itemFolder of itemFolders.documents) {
-          await databases.deleteDocument(
-            process.env.APPWRITE_DATABASE_ID || "vio-database",
-            COLLECTIONS.ITEM_FOLDERS,
-            itemFolder.$id
-          );
-        }
-      }
-    }
-    
-    // Delete item-folder relationships for user's folders
-    if (userFolders.documents.length > 0) {
-      for (const folder of userFolders.documents) {
-        const folderItems = await databases.listDocuments(
-          process.env.APPWRITE_DATABASE_ID || "vio-database",
-          COLLECTIONS.ITEM_FOLDERS,
-          [Query.equal('folderId', folder.$id)]
-        );
-        
-        for (const folderItem of folderItems.documents) {
-          await databases.deleteDocument(
-            process.env.APPWRITE_DATABASE_ID || "vio-database",
-            COLLECTIONS.ITEM_FOLDERS,
-            folderItem.$id
-          );
-        }
-      }
-    }
-    
-    console.log('Item-folder relationships deleted');
-    
-    // Delete all user's dashboard items
-    for (const item of userItems.documents) {
-      await databases.deleteDocument(
-        process.env.APPWRITE_DATABASE_ID || "vio-database",
-        COLLECTIONS.DASHBOARD_ITEMS,
-        item.$id
-      );
-    }
-    
-    // Delete user's folders
-    for (const folder of userFolders.documents) {
-      await databases.deleteDocument(
-        process.env.APPWRITE_DATABASE_ID || "vio-database",
-        COLLECTIONS.FOLDERS,
-        folder.$id
-      );
-    }
-    
-    // Delete quiz results
-    const quizResults = await databases.listDocuments(
-      process.env.APPWRITE_DATABASE_ID || "vio-database",
-      COLLECTIONS.QUIZ_RESULTS,
-      [Query.equal('userId', user.$id)]
-    );
-    
-    console.log(`Found ${quizResults.documents.length} quiz results to delete`);
-    
-    for (const quizResult of quizResults.documents) {
-      await databases.deleteDocument(
-        process.env.APPWRITE_DATABASE_ID || "vio-database",
-        COLLECTIONS.QUIZ_RESULTS,
-        quizResult.$id
-      );
-    }
-    
-    // Delete user profile from database
-    const existingUsers = await databases.listDocuments(
-      process.env.APPWRITE_DATABASE_ID || "vio-database",
-      COLLECTIONS.USERS,
-      [Query.equal('appwriteId', user.$id)]
-    );
-    
-    if (existingUsers.documents.length > 0) {
-      console.log('Deleting user profile from database');
-      await databases.deleteDocument(
-        process.env.APPWRITE_DATABASE_ID || "vio-database",
-        COLLECTIONS.USERS,
-        existingUsers.documents[0].$id
-      );
-    }
-    
-    // Finally, delete the user account from Appwrite using admin SDK
-    try {
-      // Create admin client for user deletion
-      const { Client } = require('node-appwrite');
-      const adminClient = new Client()
-        .setEndpoint(process.env.APPWRITE_ENDPOINT || 'https://cloud.appwrite.io/v1')
-        .setProject(process.env.APPWRITE_PROJECT_ID || '')
-        .setKey(process.env.APPWRITE_API_KEY || '');
-      
-      const adminUsers = new Users(adminClient);
-      
-      console.log('Deleting user account from Appwrite');
-      await adminUsers.delete(user.$id);
-      
-      console.log('User account deleted successfully:', user.$id);
-    } catch (error) {
-      console.error('Error deleting user from Appwrite (continuing anyway):', error);
-      // Continue even if Appwrite user deletion fails, since we've cleaned up the data
-    }
-    
-    return NextResponse.json({ 
-      success: true, 
-      message: 'Account deleted successfully' 
-    });
 
-  } catch (error: any) {
-    console.error('Error in DELETE /api/user/delete:', error);
-    
-    // Handle authentication errors
-    if (error.message?.includes('JWT') || error.message?.includes('Authentication')) {
-      return NextResponse.json(
-        { error: 'Authentication required', details: error.message },
-        { status: 401 }
-      );
+    for (const reference of await ownedFiles(dbUser.id)) {
+      try {
+        await storage.deleteFile(reference.bucket_id, reference.file_id);
+      } catch (error) {
+        const code = Number((error as { code?: unknown })?.code || 0);
+        if (code !== 404) throw error;
+      }
     }
-    
-    return NextResponse.json(
-      { error: 'Failed to delete account', details: error.message },
-      { status: 500 }
-    );
+    await executeSingle(`UPDATE account_deletion_jobs SET status='files_deleted', last_successful_stage='files_deleted' WHERE id=?`, [jobId]);
+
+    await users.delete(user.$id);
+    await executeSingle(`UPDATE account_deletion_jobs SET status='identity_deleted', last_successful_stage='identity_deleted' WHERE id=?`, [jobId]);
+
+    await executeSingle(`DELETE FROM users WHERE id=?`, [dbUser.id]);
+    await executeSingle(`UPDATE account_deletion_jobs SET status='completed', completed_at=UTC_TIMESTAMP() WHERE id=?`, [jobId]);
+    return NextResponse.json({ success: true, message: "Account deleted successfully", deletionId: jobId });
+  } catch (error) {
+    if (dbUserId) {
+      await executeSingle(
+        `UPDATE account_deletion_jobs SET status='failed', error_code=? WHERE id=?`,
+        [error instanceof Error ? error.name.slice(0, 100) : "ACCOUNT_DELETION_ERROR", jobId],
+      ).catch(() => undefined);
+    }
+    return apiErrorResponse(error);
   }
-} 
+}

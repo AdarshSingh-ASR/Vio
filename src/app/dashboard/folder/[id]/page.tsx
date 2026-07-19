@@ -1,4 +1,5 @@
 "use client";
+/* eslint-disable @next/next/no-img-element -- previews use expiring authenticated Appwrite URLs and arbitrary external link images that cannot be safely proxied by Next Image */
 import React, { useEffect, useState, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { Pencil, Trash, CheckCircle, X, Loader2, MoreVertical, FolderPlus, Star, StarOff, Plus } from "lucide-react";
@@ -746,4 +747,4 @@ const FolderPage = () => {
   );
 };
 
-export default FolderPage; 
+export default FolderPage;

@@ -8,10 +8,11 @@ import {
 import React from "react";
 
 type Props = {
-  params: { workspaceId: string };
+  params: Promise<{ workspaceId: string }>;
 };
 
-const Page = async ({ params }: Props) => {
+const Page = async (props: Props) => {
+  const params = await props.params;
   const { workspaceId } = params;
   const query = new QueryClient();
 

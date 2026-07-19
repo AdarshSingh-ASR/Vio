@@ -1,334 +1,117 @@
+import crypto from "crypto";
 import { NextRequest, NextResponse } from "next/server";
-import { userService, chatMessageService } from "@/lib/tidb-service";
-import { getCurrentUser } from "@/lib/appwrite-server";
-import { storeMemory } from "@/lib/mem0";
-import { logLLMRequest, trackAIFeature } from "@/lib/keywords-ai";
+import { z } from "zod";
+import { agentServiceFetch, createAgentContextToken } from "@/lib/agent-client";
+import { conversationService } from "@/lib/conversation-service";
+import { decryptSecret } from "@/lib/credential-vault";
+import { executeQuery, executeSingle } from "@/lib/tidb";
+import { apiErrorResponse, requireDbUser } from "@/lib/request-auth";
+import { retrieveMemoriesForUser } from "@/lib/mem0";
+import { enforceRateLimit } from "@/lib/rate-limit";
 
-interface ChatMessage {
-  role: 'system' | 'user' | 'assistant';
-  content: string;
-}
+export const runtime = "nodejs";
+export const maxDuration = 60;
 
-interface ChatRequest {
-  messages: ChatMessage[];
-  userId: string;
-  chatId: string;
-  contextItems?: string[];
-}
+const requestSchema = z.object({
+  message: z.string().trim().min(1).max(100000).optional(),
+  messages: z.array(z.object({ role: z.enum(["system", "user", "assistant"]), content: z.string() })).optional(),
+  conversationId: z.string().optional(),
+  chatId: z.string().optional(),
+  contextItemIds: z.array(z.string()).optional(),
+  contextItems: z.array(z.string()).optional(),
+});
 
-// Groq API integration
-async function callGroqAPI(messages: ChatMessage[]): Promise<{ content: string; tokens: number }> {
-  const groqApiKey = process.env.GROQ_API_KEY;
-  if (!groqApiKey) {
-    throw new Error('GROQ_API_KEY not configured');
-  }
-
-  // Convert messages to Groq format
-  const groqMessages = messages.map(msg => ({
-    role: msg.role,
-    content: msg.content
-  }));
-
-  const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${groqApiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: 'llama-3.1-8b-instant', // Using current Llama 3.1 8B model
-      messages: groqMessages,
-      max_tokens: 2048,
-      temperature: 0.7,
-      stream: false
-    })
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Groq API error: ${response.status} - ${errorText}`);
-  }
-
-  const data = await response.json();
-  return {
-    content: data.choices[0]?.message?.content || 'No response generated',
-    tokens: data.usage?.total_tokens || 0
-  };
-}
-
-// OpenAI API integration (fallback)
-async function callOpenAIAPI(messages: ChatMessage[]): Promise<{ content: string; tokens: number }> {
-  const openaiApiKey = process.env.OPENAI_API_KEY;
-  const openaiBaseUrl = process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1';
-  
-  if (!openaiApiKey) {
-    throw new Error('OPENAI_API_KEY not configured');
-  }
-
-  // Convert messages to OpenAI format
-  const openaiMessages = messages.map(msg => ({
-    role: msg.role,
-    content: msg.content
-  }));
-
-  const response = await fetch(`${openaiBaseUrl}/chat/completions`, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${openaiApiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: 'gpt-3.5-turbo',
-      messages: openaiMessages,
-      max_tokens: 2048,
-      temperature: 0.7,
-      stream: false
-    })
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`OpenAI API error: ${response.status} - ${errorText}`);
-  }
-
-  const data = await response.json();
-  return {
-    content: data.choices[0]?.message?.content || 'No response generated',
-    tokens: data.usage?.total_tokens || 0
-  };
-}
-
-export async function POST(req: NextRequest) {
-  const startTime = Date.now();
-  
+export async function POST(request: NextRequest) {
   try {
-    // Get current user from JWT
-    const appwriteUser = await getCurrentUser(req);
-    if (!appwriteUser) {
-      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+    const user = await requireDbUser(request);
+    await enforceRateLimit(user.id, "chat", 30, 60);
+    const input = requestSchema.parse(await request.json());
+    const message = input.message || [...(input.messages || [])].reverse().find((item) => item.role === "user")?.content;
+    if (!message) return NextResponse.json({ error: "A user message is required" }, { status: 400 });
+    if (!process.env.AGENT_SHARED_SECRET) return NextResponse.json({ error: "The internal agent secret is not configured" }, { status: 503 });
+
+    const conversationId = await conversationService.ensure(user.id, input.conversationId || input.chatId, message.slice(0, 80));
+    await conversationService.addMessage({ conversationId, role: "user", content: message });
+    const preferenceRows = await executeQuery<any>(`SELECT default_provider, allow_built_in_fallback FROM user_ai_preferences WHERE user_id = ?`, [user.id]);
+    const providerMode = preferenceRows[0]?.default_provider || "built_in";
+    const allowBuiltInFallback = Boolean(preferenceRows[0]?.allow_built_in_fallback);
+    let openAIKey: string | undefined;
+    if (providerMode === "openai_byok") {
+      const credentials = await executeQuery<any>(`SELECT encrypted_value, key_version FROM ai_credentials WHERE user_id = ? AND provider = 'openai' AND status = 'active'`, [user.id]);
+      if (!credentials[0]) return NextResponse.json({ error: "Your OpenAI API key is not connected" }, { status: 400 });
+      openAIKey = await decryptSecret({ ciphertext: credentials[0].encrypted_value, keyVersion: credentials[0].key_version });
     }
 
-    // Get user from TiDB database
-    const dbUser = await userService.getByAppwriteUserId(appwriteUser.$id);
-    if (!dbUser) {
-      return NextResponse.json({ error: 'User not found in database' }, { status: 404 });
-    }
-
-    const { messages, userId, chatId, contextItems }: ChatRequest = await req.json();
-
-    if (!messages || !Array.isArray(messages) || messages.length === 0) {
-      return NextResponse.json({ error: 'Messages are required' }, { status: 400 });
-    }
-
-    // Get the last user message
-    const lastMessage = messages[messages.length - 1];
-    if (!lastMessage || lastMessage.role !== 'user') {
-      return NextResponse.json({ error: 'Last message must be from user' }, { status: 400 });
-    }
-
-    console.log('🤖 Processing chat request:', {
-      userId: dbUser.id,
-      chatId,
-      messageCount: messages.length,
-      contextItems: contextItems?.length || 0
+    const serviceUrl = process.env.AGENT_SERVICE_URL;
+    if (!serviceUrl) return NextResponse.json({ error: "Vio Agent service is not configured", code: "AGENT_SERVICE_UNAVAILABLE" }, { status: 503 });
+    const runId = crypto.randomUUID();
+    const traceId = request.headers.get("X-Vio-Trace-Id")?.slice(0, 64) || crypto.randomUUID();
+    const initialProvider = providerMode === "openai_byok" ? "openai" : "vertex";
+    const initialModel = providerMode === "openai_byok" ? process.env.OPENAI_MODEL || "gpt-5.6" : process.env.VERTEX_MODEL || "gemini-2.5-flash";
+    const selectedItemIds = (input.contextItemIds || input.contextItems || []).slice(0, 10);
+    const curatedMemories = await retrieveMemoriesForUser(message, user.id, { limit: 8, minConfidence: 0.7 });
+    await executeSingle(
+      `INSERT INTO agent_runs (id, trace_id, conversation_id, user_id, status, provider, model, allow_built_in_fallback, context_item_ids)
+       VALUES (?, ?, ?, ?, 'running', ?, ?, ?, ?)`,
+      [runId, traceId, conversationId, user.id, initialProvider, initialModel, allowBuiltInFallback, JSON.stringify(selectedItemIds)]
+    );
+    const token = createAgentContextToken(
+      user.id,
+      ["documents:read", "classrooms:read", "classrooms:manage", "teacher-reviews:publish", "memory:write", "learning:read", "research:read", "assignments:write", "assignments:publish"],
+      { runId, conversationId, traceId }
+    );
+    const upstream = await agentServiceFetch("/v1/agent/runs", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Vio-Agent-Token": token, "X-Vio-Trace-Id": traceId, ...(openAIKey ? { "X-OpenAI-Key": openAIKey } : {}) },
+      body: JSON.stringify({ message, conversation_id: conversationId, run_id: runId, provider_mode: providerMode, allow_built_in_fallback: allowBuiltInFallback, context_item_ids: selectedItemIds, curated_memories: curatedMemories.map((memory) => memory.content) }),
+      signal: request.signal,
     });
-
-    let response: { content: string; tokens: number };
-    let provider: 'groq' | 'openai' = 'groq';
-
-    try {
-      // Try Groq first
-      console.log('🚀 Attempting Groq Llama3...');
-      response = await callGroqAPI(messages);
-      provider = 'groq';
-      console.log('✅ Groq response successful:', { tokens: response.tokens });
-    } catch (groqError) {
-      console.warn('⚠️ Groq failed, falling back to OpenAI:', groqError);
-      
-      try {
-        // Fallback to OpenAI
-        console.log('🔄 Attempting OpenAI fallback...');
-        response = await callOpenAIAPI(messages);
-        provider = 'openai';
-        console.log('✅ OpenAI response successful:', { tokens: response.tokens });
-      } catch (openaiError) {
-        console.error('❌ Both Groq and OpenAI failed:', { groqError, openaiError });
-        return NextResponse.json(
-          { 
-            error: 'AI service temporarily unavailable',
-            details: 'Both Groq and OpenAI services are currently unavailable. Please try again later.'
-          }, 
-          { status: 503 }
-        );
-      }
+    if (!upstream.ok || !upstream.body) {
+      console.error("Agent service rejected chat", { status: upstream.status });
+      await executeSingle(`UPDATE agent_runs SET status='failed', error_code='AGENT_SERVICE_REJECTED', completed_at=UTC_TIMESTAMP() WHERE id=? AND user_id=?`, [runId, user.id]);
+      return NextResponse.json({ error: "The AI service is temporarily unavailable" }, { status: 503 });
     }
 
-    const responseTime = Date.now() - startTime;
-
-    // Store the conversation in TiDB
-    try {
-      // Store user message
-      await chatMessageService.create({
-        userId: dbUser.id,
-        chatId,
-        role: 'user',
-        content: lastMessage.content,
-        metadata: {
-          responseTime,
-          provider: 'input',
-          contextItems: contextItems || []
-        }
-      });
-
-      // Store assistant message
-      await chatMessageService.create({
-        userId: dbUser.id,
-        chatId,
-        role: 'assistant',
-        content: response.content,
-        metadata: {
-          responseTime,
-          provider,
-          tokens: response.tokens,
-          contextItems: contextItems || []
-        }
-      });
-
-      console.log('💾 Chat messages stored in TiDB');
-    } catch (dbError) {
-      console.error('⚠️ Failed to store chat messages:', dbError);
-      // Don't fail the request if database storage fails
-    }
-
-    // Store in Mem0 for advanced memory (optional)
-    if (process.env.MEM0_API_KEY) {
-      try {
-        await storeMemory(userId, [
-          {
-            role: 'user',
-            content: [{
-              type: 'text',
-              text: lastMessage.content
-            }]
-          }
-        ], {
-          type: 'custom_chat',
-          chatId: chatId,
-          timestamp: new Date().toISOString(),
-          responseTime,
-          provider,
-          tokens: response.tokens,
-          contextItems: contextItems || []
-        });
-      } catch (memoryError) {
-        console.error('⚠️ Failed to store in Mem0:', memoryError);
-      }
-    }
-
-    // Log LLM request for analytics
-    try {
-      await logLLMRequest({
-        userId: dbUser.id,
-        model: provider === 'groq' ? 'llama-3.1-8b-instant' : 'gpt-3.5-turbo',
-        prompt: lastMessage.content,
-        response: response.content,
-        metadata: {
-          provider,
-          inputTokens: Math.ceil(lastMessage.content.length / 4), // Rough estimate
-          outputTokens: response.tokens,
-          responseTime,
-          success: true,
-          endpoint: '/api/chat'
-        }
-      });
-    } catch (logError) {
-      console.error('⚠️ Failed to log LLM request:', logError);
-    }
-
-    // Track AI feature usage
-    try {
-      await trackAIFeature({
-        feature: 'custom_chat',
-        performance: responseTime,
-        success: true,
-        userId: dbUser.id,
-        metadata: {
-          provider,
-          tokens: response.tokens,
-          messageLength: lastMessage.content.length,
-          contextItems: contextItems?.length || 0
-        }
-      });
-    } catch (trackError) {
-      console.error('⚠️ Failed to track AI feature:', trackError);
-    }
-
-    return NextResponse.json({
-      success: true,
-      response: response.content,
-      provider,
-      tokens: response.tokens,
-      responseTime,
-      metadata: {
-        model: provider === 'groq' ? 'llama-3.1-8b-instant' : 'gpt-3.5-turbo',
-        contextItems: contextItems?.length || 0
-      }
-    });
-
-  } catch (error: any) {
-    console.error('❌ Chat API error:', error);
-    
-    const responseTime = Date.now() - startTime;
-    
-    // Track failed AI feature usage
-    try {
-      const appwriteUser = await getCurrentUser(req);
-      if (appwriteUser) {
-        const dbUser = await userService.getByAppwriteUserId(appwriteUser.$id);
-        if (dbUser) {
-          await trackAIFeature({
-            feature: 'custom_chat',
-            performance: responseTime,
-            success: false,
-            userId: dbUser.id,
-            metadata: {
-              error: error.message
+    const decoder = new TextDecoder();
+    let assistantContent = "";
+    let parseBuffer = "";
+    let provider = initialProvider;
+    let model = initialModel;
+    const stream = new ReadableStream({
+      async start(controller) {
+        const reader = upstream.body!.getReader();
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            controller.enqueue(value);
+            parseBuffer += decoder.decode(value, { stream: true });
+            const events = parseBuffer.split("\n\n");
+            parseBuffer = events.pop() || "";
+            for (const event of events) {
+              const line = event.split("\n").find((part) => part.startsWith("data:"));
+              if (!line) continue;
+              try {
+                const data = JSON.parse(line.slice(5).trim());
+                if (data.type === "message.delta") assistantContent += data.delta || "";
+                if (data.type === "done") { if (data.provider && data.provider !== "unknown") provider = data.provider; model = data.model || model; }
+              } catch { /* malformed upstream events are ignored but still forwarded */ }
             }
-          });
-        }
-      }
-    } catch (trackError) {
-      console.error('⚠️ Failed to track failed AI feature:', trackError);
-    }
-
-    return NextResponse.json(
-      { 
-        error: 'Failed to process chat request',
-        details: error.message 
+          }
+          if (assistantContent) await conversationService.addMessage({ conversationId, role: "assistant", content: assistantContent, provider, model });
+          controller.close();
+        } catch (error) {
+          console.error("Chat stream interrupted", error);
+          if (assistantContent) await conversationService.addMessage({ conversationId, role: "assistant", content: assistantContent, provider, model, status: "failed" });
+          await executeSingle(`UPDATE agent_runs SET status='failed', error_code='STREAM_INTERRUPTED', completed_at=UTC_TIMESTAMP() WHERE id=? AND user_id=?`, [runId, user.id]);
+          controller.error(error);
+        } finally { reader.releaseLock(); }
       },
-      { status: 500 }
-    );
-  }
+    });
+    return new Response(stream, { headers: { "Content-Type": "text/event-stream; charset=utf-8", "Cache-Control": "no-cache, no-transform", "X-Conversation-Id": conversationId, "X-Agent-Run-Id": runId, "X-Accel-Buffering": "no" } });
+  } catch (error) { return apiErrorResponse(error); }
 }
 
-// Health check endpoint
-export async function GET(req: NextRequest) {
-  try {
-    const groqConfigured = !!process.env.GROQ_API_KEY;
-    const openaiConfigured = !!process.env.OPENAI_API_KEY;
-    
-    return NextResponse.json({
-      status: 'healthy',
-      services: {
-        groq: groqConfigured,
-        openai: openaiConfigured
-      },
-      timestamp: new Date().toISOString()
-    });
-  } catch (error) {
-    return NextResponse.json(
-      { error: 'Health check failed' },
-      { status: 500 }
-    );
-  }
+export async function GET() {
+  return NextResponse.json({ status: process.env.AGENT_SERVICE_URL ? "configured" : "unconfigured", primary: "vertex", model: process.env.VERTEX_MODEL || "gemini-2.5-flash" });
 }

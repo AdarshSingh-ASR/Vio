@@ -47,6 +47,7 @@ export interface DashboardItem {
   fileUrl?: string;
   appwriteFileId?: string;
   appwriteBucketId?: string;
+  favorite?: boolean;
   workspaceId: string;
   createdBy: string;
   createdAt: Date;
@@ -164,24 +165,6 @@ export interface ResearchQuery {
   updatedAt: Date;
 }
 
-export interface VideoGeneration {
-  id: string;
-  userId: string;
-  workspaceId: string;
-  topic: string;
-  selectedDocuments?: string[];
-  learningLevel: 'beginner' | 'intermediate' | 'advanced';
-  videoStyle: 'explainer' | 'tutorial' | 'story' | 'interactive';
-  durationMinutes: number;
-  includeExamples: boolean;
-  includeVisuals: boolean;
-  includeQuiz: boolean;
-  script?: any;
-  status: 'generated' | 'processing' | 'completed' | 'failed';
-  createdAt: Date;
-  updatedAt: Date;
-}
-
 export interface FileMetadata {
   id: string;
   fileName: string;
@@ -251,6 +234,7 @@ const mapDashboardItemRow = (row: any): DashboardItem => ({
   fileUrl: row.file_url,
   appwriteFileId: row.appwrite_file_id,
   appwriteBucketId: row.appwrite_bucket_id,
+  favorite: Boolean(row.favorite),
   workspaceId: row.workspace_id,
   createdBy: row.created_by,
   createdAt: row.created_at,
@@ -616,6 +600,10 @@ export const dashboardItemService = {
     if (updates.appwriteBucketId !== undefined) {
       updateFields.push('appwrite_bucket_id = ?');
       values.push(updates.appwriteBucketId || null);
+    }
+    if (updates.favorite !== undefined) {
+      updateFields.push('favorite = ?');
+      values.push(Boolean(updates.favorite));
     }
     if (updates.workspaceId !== undefined) {
       updateFields.push('workspace_id = ?');
@@ -1601,115 +1589,6 @@ export const researchQueryService = {
 
   async delete(id: string): Promise<void> {
     const query = `DELETE FROM ${TABLES.RESEARCH_QUERIES} WHERE id = ?`;
-    await executeSingle(query, [id]);
-  }
-};
-
-// Video Generation operations
-export const videoGenerationService = {
-  async create(videoGeneration: Omit<VideoGeneration, 'id' | 'createdAt' | 'updatedAt'>): Promise<VideoGeneration> {
-    const id = ID.unique();
-    const query = `
-      INSERT INTO ${TABLES.VIDEO_GENERATIONS} 
-      (id, user_id, workspace_id, topic, selected_documents, learning_level, video_style, 
-       duration_minutes, include_examples, include_visuals, include_quiz, script, status)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `;
-    await executeSingle(query, [
-      id, 
-      videoGeneration.userId, 
-      videoGeneration.workspaceId, 
-      videoGeneration.topic,
-      JSON.stringify(videoGeneration.selectedDocuments || []),
-      videoGeneration.learningLevel,
-      videoGeneration.videoStyle,
-      videoGeneration.durationMinutes,
-      videoGeneration.includeExamples,
-      videoGeneration.includeVisuals,
-      videoGeneration.includeQuiz,
-      JSON.stringify(videoGeneration.script || {}),
-      videoGeneration.status
-    ]);
-    const createdVideoGeneration = await videoGenerationService.getById(id);
-    if (!createdVideoGeneration) {
-      throw new Error('Failed to create video generation');
-    }
-    return createdVideoGeneration;
-  },
-
-  async getById(id: string): Promise<VideoGeneration | null> {
-    const query = `SELECT * FROM ${TABLES.VIDEO_GENERATIONS} WHERE id = ?`;
-    const results = await executeQuery(query, [id]);
-    if (results[0]) {
-      const result = results[0];
-      return {
-        id: result.id,
-        userId: result.user_id,
-        workspaceId: result.workspace_id,
-        topic: result.topic,
-        selectedDocuments: safeJsonParse(result.selected_documents, []),
-        learningLevel: result.learning_level,
-        videoStyle: result.video_style,
-        durationMinutes: result.duration_minutes,
-        includeExamples: result.include_examples,
-        includeVisuals: result.include_visuals,
-        includeQuiz: result.include_quiz,
-        script: safeJsonParse(result.script, {}),
-        status: result.status,
-        createdAt: result.created_at,
-        updatedAt: result.updated_at
-      };
-    }
-    return null;
-  },
-
-  async getByUserId(userId: string): Promise<VideoGeneration[]> {
-    const query = `SELECT * FROM ${TABLES.VIDEO_GENERATIONS} WHERE user_id = ? ORDER BY created_at DESC`;
-    const results = await executeQuery(query, [userId]);
-    return results.map(result => ({
-      id: result.id,
-      userId: result.user_id,
-      workspaceId: result.workspace_id,
-      topic: result.topic,
-      selectedDocuments: safeJsonParse(result.selected_documents, []),
-      learningLevel: result.learning_level,
-      videoStyle: result.video_style,
-      durationMinutes: result.duration_minutes,
-      includeExamples: result.include_examples,
-      includeVisuals: result.include_visuals,
-      includeQuiz: result.include_quiz,
-      script: safeJsonParse(result.script, {}),
-      status: result.status,
-      createdAt: result.created_at,
-      updatedAt: result.updated_at
-    }));
-  },
-
-  async update(id: string, updates: Partial<Omit<VideoGeneration, 'id' | 'createdAt' | 'updatedAt'>>): Promise<void> {
-    const fields: string[] = [];
-    const values: any[] = [];
-
-    Object.entries(updates).forEach(([key, value]) => {
-      if (key === 'selectedDocuments' || key === 'script') {
-        const dbKey = key.replace(/([A-Z])/g, '_$1').toLowerCase();
-        fields.push(`${dbKey} = ?`);
-        values.push(JSON.stringify(value));
-      } else if (key !== 'userId' && key !== 'workspaceId' && value !== undefined) {
-        const dbKey = key.replace(/([A-Z])/g, '_$1').toLowerCase();
-        fields.push(`${dbKey} = ?`);
-        values.push(value);
-      }
-    });
-
-    if (fields.length === 0) return;
-
-    values.push(id);
-    const query = `UPDATE ${TABLES.VIDEO_GENERATIONS} SET ${fields.join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE id = ?`;
-    await executeSingle(query, values);
-  },
-
-  async delete(id: string): Promise<void> {
-    const query = `DELETE FROM ${TABLES.VIDEO_GENERATIONS} WHERE id = ?`;
     await executeSingle(query, [id]);
   }
 };

@@ -1,11 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/appwrite-server';
 import { userService, researchQueryService, dashboardItemService, workspaceService } from '@/lib/tidb-service';
-import { Groq } from 'groq-sdk';
-
-const groq = new Groq({
-  apiKey: process.env.GROQ_API_KEY,
-});
+import { createCentralAIClient } from '@/lib/central-ai';
 
 export async function POST(req: NextRequest) {
   try {
@@ -20,6 +16,7 @@ export async function POST(req: NextRequest) {
     if (!dbUser) {
       return NextResponse.json({ error: 'User not found in database' }, { status: 404 });
     }
+    const groq = createCentralAIClient(dbUser.id, "research");
 
     const { 
       workspaceId = 'default',
@@ -200,7 +197,7 @@ Return JSON response:
         const jsonString = jsonMatch ? jsonMatch[0] : analysisResponse;
         analysisData = JSON.parse(jsonString);
       } catch (parseError) {
-        console.error('Failed to parse AI response:', analysisResponse);
+        console.error('Failed to parse structured research response');
         throw new Error('Invalid AI response format');
       }
 
@@ -327,7 +324,6 @@ Return JSON:
 
         } catch (synthesisParseError) {
           console.warn('Failed to parse synthesis response:', synthesisParseError);
-          console.warn('Raw synthesis response:', synthesisResponse);
           
           // Create a fallback synthesis object
           const fallbackSynthesis = {

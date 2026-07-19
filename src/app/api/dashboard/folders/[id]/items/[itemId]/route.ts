@@ -7,7 +7,11 @@ import {
   itemFolderService
 } from '@/lib/tidb-service';
 
-export async function DELETE(req: NextRequest, { params }: { params: { id: string, itemId: string } }) {
+export async function DELETE(
+  req: NextRequest,
+  props: { params: Promise<{ id: string, itemId: string }> }
+) {
+  const params = await props.params;
   try {
     console.log('🗑️ Remove item from folder API hit:', params);
     
@@ -78,5 +82,4 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
       details: error.message 
     }, { status: 500 });
   }
-
 }

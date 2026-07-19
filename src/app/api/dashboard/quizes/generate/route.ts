@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedServices } from '@/lib/appwrite-server';
 import { dashboardItemService, userService } from '@/lib/tidb-service';
-import Groq from 'groq-sdk';
-
-const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+import { createCentralAIClient } from '@/lib/central-ai';
 
 // Helper function to validate content quality for quiz generation
 function validateContentQuality(content: string) {
@@ -74,6 +72,7 @@ export async function POST(req: NextRequest) {
         { status: 404 }
       );
     }
+    const groq = createCentralAIClient(dbUser.id, "quiz_generation");
 
     // Fetch the item content from TiDB
     const item = await dashboardItemService.getById(itemId);
@@ -271,6 +270,8 @@ Important: Return only the JSON array, no additional text or formatting.`;
           return 'text file';
         case 'transcript':
           return 'video transcript';
+        case 'video-description':
+          return 'video description (not a transcript)';
         case 'web-content':
           return 'website content';
         case 'powerpoint':
@@ -370,7 +371,7 @@ Always generate questions that test genuine understanding rather than trivial de
       const jsonString = jsonMatch ? jsonMatch[0] : responseText;
       questions = JSON.parse(jsonString);
     } catch (parseError) {
-      console.error('Failed to parse AI response:', responseText);
+      console.error('Quiz provider returned malformed structured output');
       throw new Error('Invalid AI response format');
     }
 
@@ -419,4 +420,4 @@ Always generate questions that test genuine understanding rather than trivial de
       { status: 500 }
     );
   }
-} 
+}

@@ -111,7 +111,20 @@ export const TABLES = {
   LEARNING_STEPS: 'learning_steps',
   STUDY_SESSIONS: 'study_sessions',
   RESEARCH_QUERIES: 'research_queries',
-  VIDEO_GENERATIONS: 'video_generations'
+  CONVERSATIONS: 'conversations',
+  CONVERSATION_MESSAGES: 'conversation_messages',
+  USER_MEMORIES: 'user_memories',
+  AI_CREDENTIALS: 'ai_credentials',
+  USER_AI_PREFERENCES: 'user_ai_preferences',
+  CLASSROOMS: 'classrooms',
+  CLASSROOM_MEMBERS: 'classroom_members',
+  CLASSROOM_INVITES: 'classroom_invites',
+  HOMEWORK_ASSIGNMENTS: 'homework_assignments',
+  HOMEWORK_SUBMISSIONS: 'homework_submissions',
+  SUBMISSION_VERSIONS: 'submission_versions',
+  AI_EVALUATIONS: 'ai_evaluations',
+  TEACHER_REVIEWS: 'teacher_reviews',
+  AUDIT_EVENTS: 'audit_events'
 } as const;
 
 // Helper function to escape table names and columns

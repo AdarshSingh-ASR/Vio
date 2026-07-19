@@ -12,7 +12,7 @@ import Navigation from "@/components/global/sidebar/navigation";
 import Folders from "@/components/global/sidebar/folders";
 import Quizes from "@/components/global/sidebar/quizes";
 import AIAgents from "@/components/global/sidebar/ai-agents";
-import VideoGeneratorNav from "@/components/global/sidebar/video-generator-nav";
+import ClassroomsNav from "@/components/global/sidebar/classrooms-nav";
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from "@/context/AuthContext";
 import { SidebarItem } from "./sidebar.item";
@@ -76,7 +76,7 @@ export default function Sidebar({ activeWorkspaceId }: Props) {
           <Folders />
           <Quizes />
           <AIAgents />
-          <VideoGeneratorNav />
+          <ClassroomsNav />
         </div>
         <div className="pb-3 pt-2">
           <SidebarItem

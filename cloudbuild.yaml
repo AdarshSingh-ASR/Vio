@@ -1,0 +1,114 @@
+substitutions:
+  _REGION: us-central1
+  _AR_REPOSITORY: vio
+  _WEB_SERVICE: vio-web
+  _AGENT_SERVICE: vio-agent
+  _MIGRATION_JOB: vio-migrate
+  _WEB_SERVICE_ACCOUNT: vio-web@${PROJECT_ID}.iam.gserviceaccount.com
+  _AGENT_SERVICE_ACCOUNT: vio-agent@${PROJECT_ID}.iam.gserviceaccount.com
+  _TASKS_SERVICE_ACCOUNT: vio-tasks@${PROJECT_ID}.iam.gserviceaccount.com
+  _APPWRITE_ENDPOINT: https://cloud.appwrite.io/v1
+  _APPWRITE_PROJECT_ID: change-me
+  _FILES_BUCKET_ID: files
+  _IMAGES_BUCKET_ID: images
+  _VIDEOS_BUCKET_ID: videos
+  _KMS_KEY_NAME: projects/${PROJECT_ID}/locations/us-central1/keyRings/vio/cryptoKeys/user-credentials
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+  machineType: E2_HIGHCPU_8
+  dynamicSubstitutions: true
+
+steps:
+  - id: build-web
+    name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - --build-arg=NEXT_PUBLIC_APPWRITE_ENDPOINT=${_APPWRITE_ENDPOINT}
+      - --build-arg=NEXT_PUBLIC_APPWRITE_PROJECT_ID=${_APPWRITE_PROJECT_ID}
+      - --build-arg=NEXT_PUBLIC_APPWRITE_FILES_BUCKET_ID=${_FILES_BUCKET_ID}
+      - --build-arg=NEXT_PUBLIC_APPWRITE_IMAGES_BUCKET_ID=${_IMAGES_BUCKET_ID}
+      - --build-arg=NEXT_PUBLIC_APPWRITE_VIDEOS_BUCKET_ID=${_VIDEOS_BUCKET_ID}
+      - -t
+      - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPOSITORY}/web:${BUILD_ID}
+      - .
+
+  - id: build-agent
+    name: gcr.io/cloud-builders/docker
+    args: [build, -t, '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPOSITORY}/agent:${BUILD_ID}', services/agent]
+
+  - id: build-migrations
+    name: gcr.io/cloud-builders/docker
+    args: [build, -f, Dockerfile.migrate, -t, '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPOSITORY}/migrate:${BUILD_ID}', .]
+
+  - id: push-web
+    name: gcr.io/cloud-builders/docker
+    args: [push, '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPOSITORY}/web:${BUILD_ID}']
+    waitFor: [build-web]
+
+  - id: push-agent
+    name: gcr.io/cloud-builders/docker
+    args: [push, '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPOSITORY}/agent:${BUILD_ID}']
+    waitFor: [build-agent]
+
+  - id: push-migrations
+    name: gcr.io/cloud-builders/docker
+    args: [push, '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPOSITORY}/migrate:${BUILD_ID}']
+    waitFor: [build-migrations]
+
+  - id: migrate
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: bash
+    args:
+      - -ceu
+      - |
+        gcloud run jobs deploy '${_MIGRATION_JOB}' \
+          --image '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPOSITORY}/migrate:${BUILD_ID}' \
+          --region '${_REGION}' --service-account '${_WEB_SERVICE_ACCOUNT}' \
+          --set-env-vars 'TIDB_SSL=true' \
+          --set-secrets 'TIDB_HOST=vio-tidb-host:latest,TIDB_USER=vio-tidb-user:latest,TIDB_PASSWORD=vio-tidb-password:latest,TIDB_DATABASE=vio-tidb-database:latest'
+        gcloud run jobs execute '${_MIGRATION_JOB}' --region '${_REGION}' --wait
+    waitFor: [push-migrations]
+
+  - id: deploy-agent
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: bash
+    args:
+      - -ceu
+      - |
+        gcloud run deploy '${_AGENT_SERVICE}' \
+          --image '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPOSITORY}/agent:${BUILD_ID}' \
+          --region '${_REGION}' --platform managed --no-allow-unauthenticated \
+          --service-account '${_AGENT_SERVICE_ACCOUNT}' --min-instances 1 --memory 2Gi --cpu 2 --timeout 900 \
+          --set-env-vars 'GOOGLE_CLOUD_PROJECT=${PROJECT_ID},GOOGLE_CLOUD_LOCATION=${_REGION},GOOGLE_GENAI_USE_VERTEXAI=true,VERTEX_MODEL=gemini-2.5-flash,VERTEX_EMBEDDING_MODEL=gemini-embedding-001,TIDB_SSL=true' \
+          --set-secrets 'AGENT_SHARED_SECRET=vio-agent-shared-secret:latest,AGNO_DATABASE_URL=vio-agno-database-url:latest'
+    waitFor: [push-agent, migrate]
+
+  - id: deploy-web-and-wire-services
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: bash
+    args:
+      - -ceu
+      - |
+        AGENT_URL="$(gcloud run services describe '${_AGENT_SERVICE}' --region '${_REGION}' --format='value(status.url)')"
+        gcloud run deploy '${_WEB_SERVICE}' \
+          --image '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPOSITORY}/web:${BUILD_ID}' \
+          --region '${_REGION}' --platform managed --allow-unauthenticated \
+          --service-account '${_WEB_SERVICE_ACCOUNT}' --memory 2Gi --cpu 2 --timeout 300 \
+          --set-env-vars "NODE_ENV=production,NEXT_PUBLIC_APPWRITE_ENDPOINT=${_APPWRITE_ENDPOINT},NEXT_PUBLIC_APPWRITE_PROJECT_ID=${_APPWRITE_PROJECT_ID},NEXT_PUBLIC_APPWRITE_FILES_BUCKET_ID=${_FILES_BUCKET_ID},NEXT_PUBLIC_APPWRITE_IMAGES_BUCKET_ID=${_IMAGES_BUCKET_ID},NEXT_PUBLIC_APPWRITE_VIDEOS_BUCKET_ID=${_VIDEOS_BUCKET_ID},APPWRITE_ENDPOINT=${_APPWRITE_ENDPOINT},APPWRITE_PROJECT_ID=${_APPWRITE_PROJECT_ID},APPWRITE_FILES_BUCKET_ID=${_FILES_BUCKET_ID},APPWRITE_IMAGES_BUCKET_ID=${_IMAGES_BUCKET_ID},APPWRITE_VIDEOS_BUCKET_ID=${_VIDEOS_BUCKET_ID},AGENT_SERVICE_URL=$${AGENT_URL},AGENT_SERVICE_REQUIRE_OIDC=true,AGENT_SERVICE_OIDC_AUDIENCE=$${AGENT_URL},KMS_KEY_NAME=${_KMS_KEY_NAME},CLOUD_TASKS_PROJECT=${PROJECT_ID},CLOUD_TASKS_LOCATION=${_REGION},CLOUD_TASKS_QUEUE=vio-evaluations,CLOUD_TASKS_INGESTION_QUEUE=vio-ingestion,CLOUD_TASKS_SERVICE_ACCOUNT_EMAIL=${_TASKS_SERVICE_ACCOUNT},TIDB_SSL=true" \
+          --set-secrets 'AGENT_SHARED_SECRET=vio-agent-shared-secret:latest,APPWRITE_API_KEY=vio-appwrite-api-key:latest,TIDB_HOST=vio-tidb-host:latest,TIDB_USER=vio-tidb-user:latest,TIDB_PASSWORD=vio-tidb-password:latest,TIDB_DATABASE=vio-tidb-database:latest'
+        WEB_URL="$(gcloud run services describe '${_WEB_SERVICE}' --region '${_REGION}' --format='value(status.url)')"
+        gcloud run services update '${_WEB_SERVICE}' --region '${_REGION}' --update-env-vars "NEXT_PUBLIC_APP_URL=$${WEB_URL},VIO_JOB_CALLBACK_URL=$${WEB_URL}"
+        gcloud run services update '${_AGENT_SERVICE}' --region '${_REGION}' --update-env-vars "VIO_INTERNAL_API_URL=$${WEB_URL}"
+        gcloud run services add-iam-policy-binding '${_AGENT_SERVICE}' --region '${_REGION}' --member 'serviceAccount:${_WEB_SERVICE_ACCOUNT}' --role roles/run.invoker
+        for QUEUE in vio-evaluations vio-ingestion; do
+          gcloud tasks queues describe "$${QUEUE}" --location '${_REGION}' >/dev/null 2>&1 || gcloud tasks queues create "$${QUEUE}" --location '${_REGION}'
+        done
+        gcloud run services add-iam-policy-binding '${_AGENT_SERVICE}' --region '${_REGION}' --member 'serviceAccount:${_TASKS_SERVICE_ACCOUNT}' --role roles/run.invoker
+        gcloud run services add-iam-policy-binding '${_WEB_SERVICE}' --region '${_REGION}' --member 'serviceAccount:${_TASKS_SERVICE_ACCOUNT}' --role roles/run.invoker
+    waitFor: [push-web, deploy-agent]
+
+images:
+  - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPOSITORY}/web:${BUILD_ID}
+  - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPOSITORY}/agent:${BUILD_ID}
+  - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPOSITORY}/migrate:${BUILD_ID}

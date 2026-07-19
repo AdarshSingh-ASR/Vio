@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAuthenticatedServices } from '@/lib/appwrite-server';
-import { dashboardItemService, folderService, quizResultService, workspaceService, userService } from '@/lib/tidb-service';
+import { dashboardItemService, folderService, quizResultService, workspaceService } from '@/lib/tidb-service';
 import { searchWeb } from "@/lib/tavily";
+import { apiErrorResponse, requireDbUser } from "@/lib/request-auth";
+import { knowledgeStore } from "@/lib/knowledge-store";
 
 // Define types for web search results
 interface WebSearchResult {
@@ -19,6 +20,7 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
   try {
+    const user = await requireDbUser(req);
     const { searchParams } = new URL(req.url);
     const query = searchParams.get('q');
     const isWebSearch = searchParams.get('web') === 'true';
@@ -82,30 +84,12 @@ export async function GET(req: NextRequest) {
 
     // Handle database search using TiDB
     try {
-      const { user } = await getAuthenticatedServices(req);
-      
-      console.log('Performing TiDB search for Appwrite user:', user.$id);
-      
-      // Get TiDB user by Appwrite user ID
-      const tidbUser = await userService.getByAppwriteUserId(user.$id);
-      if (!tidbUser) {
-        console.log('No TiDB user found for Appwrite user:', user.$id);
-        return NextResponse.json({
-          items: [],
-          folders: [],
-          quizResults: [],
-          webResults: []
-        });
-      }
-      
-      console.log('Found TiDB user:', tidbUser.id);
-      
       // Get user's default workspace using TiDB user ID
-      const workspaces = await workspaceService.getByUserId(tidbUser.id);
+      const workspaces = await workspaceService.getByUserId(user.id);
       const defaultWorkspace = workspaces.find(w => w.isDefault) || workspaces[0];
       
       if (!defaultWorkspace) {
-        console.log('No workspace found for TiDB user:', tidbUser.id);
+        console.log('No workspace found for TiDB user:', user.id);
         return NextResponse.json({
           items: [],
           folders: [],
@@ -117,13 +101,14 @@ export async function GET(req: NextRequest) {
       console.log('Using workspace:', defaultWorkspace.id);
 
       // Search dashboard items
-      const items = await dashboardItemService.search(query, defaultWorkspace.id, tidbUser.id);
+      const items = await dashboardItemService.search(query, defaultWorkspace.id, user.id);
       
       // Search folders
-      const folders = await folderService.search(query, defaultWorkspace.id, tidbUser.id);
+      const folders = await folderService.search(query, defaultWorkspace.id, user.id);
       
       // Search quiz results
-      const quizResults = await quizResultService.search(query, tidbUser.id);
+      const quizResults = await quizResultService.search(query, user.id);
+      const knowledgeResults = await knowledgeStore.searchOwned({ userId: user.id, query, limit: 10 });
 
       console.log(`TiDB search completed: ${items.length} items, ${folders.length} folders, ${quizResults.length} quiz results`);
 
@@ -131,6 +116,7 @@ export async function GET(req: NextRequest) {
         items: items,
         folders: folders,
         quizResults: quizResults,
+        knowledgeResults,
         webResults: []
       });
 
@@ -149,15 +135,6 @@ export async function GET(req: NextRequest) {
 
   } catch (error: any) {
     console.error('Error in GET /api/dashboard/search:', error);
-    
-    return NextResponse.json(
-      { error: 'Search failed', details: error.message },
-      { status: 500 }
-    );
+    return apiErrorResponse(error);
   }
 }
-
-// TODO: Integrate Tavily for web search in addition to database search
-// import { tavily } from "@tavily/core";
-// const tvly = tavily({ apiKey: process.env.TAVILY_API_KEY });
-// Use tvly.search(query) for web search results 

@@ -10,7 +10,7 @@ const firecrawl = new FirecrawlApp({
 export interface ContentExtractionResult {
   success: boolean;
   content: string;
-  contentType: 'text' | 'transcript' | 'web-content' | 'pdf' | 'docx' | 'preview';
+  contentType: 'text' | 'transcript' | 'video-description' | 'web-content' | 'pdf' | 'docx' | 'preview';
   error?: string;
   metadata?: {
     title?: string;
@@ -51,7 +51,32 @@ function extractYouTubeVideoId(url: string): string | null {
   return null;
 }
 
-// YouTube Data API v3 for video metadata and description
+async function tryPublicYouTubeTranscript(videoId: string): Promise<ContentExtractionResult> {
+  try {
+    const watchResponse = await fetch(`https://www.youtube.com/watch?v=${encodeURIComponent(videoId)}&hl=en`, {
+      headers: { "User-Agent": "Mozilla/5.0 (compatible; Vio/1.0)" },
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (!watchResponse.ok) throw new Error(`YouTube watch page returned ${watchResponse.status}`);
+    const html = await watchResponse.text();
+    const match = html.match(/"captionTracks":(\[[\s\S]*?\])(?:,"audioTracks"|,"videoDetails"|,"translationLanguages")/);
+    if (!match) throw new Error("This video does not expose public captions");
+    const tracks = JSON.parse(match[1]) as { baseUrl: string; languageCode?: string }[];
+    const track = tracks.find((item) => item.languageCode?.startsWith("en")) || tracks[0];
+    if (!track?.baseUrl) throw new Error("No usable caption track was found");
+    const transcriptResponse = await fetch(`${track.baseUrl}&fmt=json3`, { signal: AbortSignal.timeout(15_000) });
+    if (!transcriptResponse.ok) throw new Error(`YouTube captions returned ${transcriptResponse.status}`);
+    const payload = await transcriptResponse.json() as { events?: { segs?: { utf8?: string }[] }[] };
+    const content = (payload.events || []).flatMap((event) => event.segs || []).map((segment) => segment.utf8 || "").join(" ").replace(/\s+/g, " ").trim();
+    if (!content) throw new Error("The public caption track was empty");
+    const title = html.match(/<title>([\s\S]*?) - YouTube<\/title>/)?.[1]?.replace(/&quot;/g, '"').replace(/&amp;/g, "&");
+    return { success: true, content, contentType: "transcript", metadata: { title, wordCount: content.split(/\s+/).length, extractionTime: Date.now(), extractionMethod: "youtube-public-captions" } };
+  } catch (error) {
+    return { success: false, content: "", contentType: "transcript", error: error instanceof Error ? error.message : "YouTube captions failed" };
+  }
+}
+
+// YouTube Data API v3 fallback for metadata and description. Descriptions are never labeled as transcripts.
 async function tryYoutubeDataApi(videoId: string): Promise<ContentExtractionResult> {
   try {
     console.log('🎥 Using YouTube Data API v3...');
@@ -61,7 +86,7 @@ async function tryYoutubeDataApi(videoId: string): Promise<ContentExtractionResu
       return {
         success: false,
         content: '',
-        contentType: 'transcript',
+        contentType: 'video-description',
         error: 'YouTube Data API key not configured'
       };
     }
@@ -82,7 +107,7 @@ async function tryYoutubeDataApi(videoId: string): Promise<ContentExtractionResu
       return {
         success: false,
         content: '',
-        contentType: 'transcript',
+        contentType: 'video-description',
         error: 'Video not found via YouTube Data API'
       };
     }
@@ -101,7 +126,7 @@ async function tryYoutubeDataApi(videoId: string): Promise<ContentExtractionResu
       return {
         success: true,
         content: description,
-        contentType: 'transcript',
+        contentType: 'video-description',
         metadata: {
           title: title,
           wordCount: description.split(/\s+/).length,
@@ -115,7 +140,7 @@ async function tryYoutubeDataApi(videoId: string): Promise<ContentExtractionResu
     return {
       success: false,
       content: '',
-      contentType: 'transcript',
+      contentType: 'video-description',
       error: 'Video description too short to extract meaningful content'
     };
   } catch (error) {
@@ -123,13 +148,13 @@ async function tryYoutubeDataApi(videoId: string): Promise<ContentExtractionResu
     return {
       success: false,
       content: '',
-      contentType: 'transcript',
+      contentType: 'video-description',
       error: error instanceof Error ? error.message : 'YouTube Data API failed'
     };
   }
 }
 
-// YouTube content extraction using only YouTube Data API v3
+// Prefer genuine public captions; fall back to a clearly labeled description.
 export async function extractYouTubeTranscript(url: string): Promise<ContentExtractionResult> {
   try {
     console.log('🎥 Starting YouTube content extraction for:', url);
@@ -148,7 +173,8 @@ export async function extractYouTubeTranscript(url: string): Promise<ContentExtr
     }
 
     console.log('🔍 Extracting content using YouTube Data API v3...');
-    const result = await tryYoutubeDataApi(videoId);
+    const transcript = await tryPublicYouTubeTranscript(videoId);
+    const result = transcript.success ? transcript : await tryYoutubeDataApi(videoId);
     
     if (result.success && result.content.length > 0) {
       console.log(`✅ SUCCESS! Extracted ${result.content.length} characters`);
@@ -439,4 +465,4 @@ export async function extractContentFromUrl(url: string): Promise<ContentExtract
       error: error instanceof Error ? error.message : 'Failed to extract content'
     };
   }
-} 
+}

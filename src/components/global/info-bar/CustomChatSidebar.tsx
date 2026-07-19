@@ -1,713 +1,155 @@
 "use client";
-import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
-import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
-import { ScrollArea } from "@/components/ui/scroll-area";
+
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Bot, Brain, Check, ChevronDown, Copy, FileText, Loader2, Plus, Send, Sparkles, Trash2, User, X, XCircle } from "lucide-react";
+import { Streamdown } from "streamdown";
 import { Badge } from "@/components/ui/badge";
-import { 
-  Send, 
-  Bot, 
-  User, 
-  Loader2, 
-  Trash2, 
-  Plus, 
-  FileText, 
-  Lightbulb, 
-  Mail,
-  BookOpen,
-  Sparkles,
-  ChevronDown,
-  ChevronUp,
-  Brain,
-  CheckCircle,
-  XCircle,
-  Clock,
-  Copy,
-  ThumbsUp,
-  ThumbsDown,
-  MoreHorizontal,
-  MessageSquare,
-  Zap,
-  Settings
-} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/context/AuthContext";
-import { storeMemory, retrieveMemoriesForUser } from "@/lib/mem0";
-import { logLLMRequest, trackAIFeature } from "@/lib/keywords-ai";
 import { getValidJWT } from "@/lib/appwrite-client";
-import ReactMarkdown from 'react-markdown';
+import { cn } from "@/lib/utils";
 
-// Define types
-type ChatMessage = {
-  id: string;
-  role: 'user' | 'assistant' | 'system';
-  content: string;
-  timestamp: Date;
-  metadata?: {
-    responseTime?: number;
-    provider?: 'groq' | 'openai';
-    tokens?: number;
-    contextItems?: string[];
-  };
-};
+type ToolEvent = { type: "started" | "completed"; tool: string; detail?: string };
+type Citation = { label: string; title?: string; locator?: unknown; sourceType?: string };
+type Approval = { runId: string; tool: string; arguments?: Record<string, unknown> };
+type ChatMessage = { id: string; role: "user" | "assistant"; content: string; timestamp: Date; provider?: string; toolEvents?: ToolEvent[]; citations?: Citation[]; approval?: Approval; failed?: boolean };
+type DashboardItem = { id?: string; $id?: string; displayName?: string; title?: string; fileType?: string };
 
-type DashboardItem = {
-  $id?: string;
-  id?: string;
-  name?: string;
-  displayName?: string;
-  url?: string;
-  extractedContent?: string;
-  fileType?: string;
-};
-
-type ChatFeature = {
-  id: string;
-  name: string;
-  icon: React.ReactNode;
-  description: string;
-  prompt: string;
-};
-
-// Helper function to get the correct ID from an item
-const getItemId = (item: DashboardItem): string => {
-  return item.$id || item.id || '';
-};
-
-// Available chat features
-const chatFeatures: ChatFeature[] = [
-  {
-    id: 'flashcards',
-    name: 'Flash Cards',
-    icon: <BookOpen className="w-4 h-4" />,
-    description: 'Generate study flashcards from content',
-    prompt: 'Generate flashcards from the provided content. Create question-answer pairs that cover the key concepts, facts, and important details.'
-  },
-  {
-    id: 'summary',
-    name: 'Summary',
-    icon: <FileText className="w-4 h-4" />,
-    description: 'Create concise summaries',
-    prompt: 'Provide a comprehensive summary of the provided content. Include the main points, key insights, and important details in a clear and organized manner.'
-  },
-  {
-    id: 'insights',
-    name: 'Insights',
-    icon: <Lightbulb className="w-4 h-4" />,
-    description: 'Extract key insights and analysis',
-    prompt: 'Analyze the provided content and extract key insights, patterns, and actionable takeaways. Provide critical analysis and recommendations.'
-  },
-  {
-    id: 'email',
-    name: 'Email Writer',
-    icon: <Mail className="w-4 h-4" />,
-    description: 'Help write professional emails',
-    prompt: 'Help me write a professional email based on the provided context. Ensure proper tone, structure, and clarity for the intended recipient.'
-  }
+const quickActions = [
+  { label: "Summarize", prompt: "Summarize the selected material with the key ideas and important details." },
+  { label: "Flashcards", prompt: "Create concise question-and-answer flashcards from the selected material." },
+  { label: "Study plan", prompt: "Create a practical study plan based on my material and current learning goals." },
 ];
 
-const CustomChatSidebar: React.FC = () => {
+export default function CustomChatSidebar() {
   const { getAuthenticatedFetch, user } = useAuth();
-  
-  // State management
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [inputValue, setInputValue] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [contextItems, setContextItems] = useState<DashboardItem[]>([]);
-  const [selectedContext, setSelectedContext] = useState<string[]>([]);
-  const [showContext, setShowContext] = useState(false);
-  const [showFeatures, setShowFeatures] = useState(false);
-  const [isLoadingHistory, setIsLoadingHistory] = useState(true);
+  const [input, setInput] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [historyLoading, setHistoryLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  
-  // Refs
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-  
-  // Create a consistent chat ID
-  const chatId = user?.id ? `vio-chat-${user.id}` : 'vio-chat-session';
+  const [retryPrompt, setRetryPrompt] = useState<string | null>(null);
+  const [historyCursor, setHistoryCursor] = useState<string | null>(null);
+  const [hasMoreHistory, setHasMoreHistory] = useState(false);
+  const [items, setItems] = useState<DashboardItem[]>([]);
+  const [selectedItems, setSelectedItems] = useState<string[]>([]);
+  const [showFiles, setShowFiles] = useState(false);
+  const abortRef = useRef<AbortController | null>(null);
+  const endRef = useRef<HTMLDivElement>(null);
+  const chatId = user?.id ? `vio-chat-${user.id}` : "vio-chat-session";
 
-  // Scroll to bottom when new messages are added
-  const scrollToBottom = useCallback(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, []);
+  useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, loading]);
 
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages, scrollToBottom]);
-
-  // Load chat history on mount
-  useEffect(() => {
-    const loadChatHistory = async () => {
+  const loadHistory = useCallback(async (before?: string) => {
       try {
-        setIsLoadingHistory(true);
-        const response = await fetch('/api/chat/history', {
-          method: 'POST',
-          headers: { 
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${await getValidJWT() || ''}`
-          },
-          body: JSON.stringify({ userId: user?.id || 'session', chatId })
-        });
-
+        const jwt = await getValidJWT();
+        const response = await fetch("/api/chat/history", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${jwt || ""}` }, body: JSON.stringify({ chatId, limit: 50, before }) });
         if (response.ok) {
           const data = await response.json();
-          if (data.messages && Array.isArray(data.messages)) {
-            const formattedMessages: ChatMessage[] = data.messages.map((msg: any) => ({
-              id: msg.id || `msg-${Date.now()}-${Math.random()}`,
-              role: msg.role,
-              content: msg.content,
-              timestamp: new Date(msg.createdAt || Date.now()),
-              metadata: msg.metadata
-            }));
-            setMessages(formattedMessages);
-          }
+          const loaded = (data.messages || []).filter((message: any) => message.role === "user" || message.role === "assistant").map((message: any) => ({ id: message.id, role: message.role, content: message.content, timestamp: new Date(message.createdAt), provider: message.metadata?.provider, failed: message.metadata?.status === "failed" }));
+          setMessages((current) => before ? [...loaded, ...current] : loaded);
+          setHistoryCursor(data.nextCursor || null);
+          setHasMoreHistory(Boolean(data.hasMore));
         }
-      } catch (error) {
-        console.error('Failed to load chat history:', error);
-      } finally {
-        setIsLoadingHistory(false);
-      }
-    };
+      } finally { setHistoryLoading(false); }
+  }, [chatId]);
+  useEffect(() => { void loadHistory(); }, [loadHistory]);
 
-    loadChatHistory();
-  }, [chatId, user?.id]);
-
-  // Fetch context items
   useEffect(() => {
-    const fetchContextItems = async () => {
-      try {
-        const authenticatedFetch = getAuthenticatedFetch();
-        const response = await authenticatedFetch('/api/dashboard/items?workspaceId=default');
-        
-        if (response.ok) {
-          const data = await response.json();
-          if (data?.items && Array.isArray(data.items)) {
-            setContextItems(data.items);
-          }
-        }
-      } catch (error) {
-        console.error('Failed to fetch context items:', error);
-      }
+    const loadItems = async () => {
+      try { const response = await getAuthenticatedFetch()("/api/dashboard/items?workspaceId=default"); const data = await response.json(); if (response.ok) setItems(data.items || []); } catch { /* optional context */ }
     };
-
-    fetchContextItems();
+    void loadItems();
   }, [getAuthenticatedFetch]);
 
-  // Handle sending messages
-  const sendMessage = useCallback(async (content: string, featurePrompt?: string) => {
-    if (!content.trim() || isLoading) return;
+  const updateAssistant = (id: string, update: (message: ChatMessage) => ChatMessage) => setMessages((current) => current.map((message) => message.id === id ? update(message) : message));
 
-    const userMessage: ChatMessage = {
-      id: `user-${Date.now()}`,
-      role: 'user',
-      content: content.trim(),
-      timestamp: new Date()
-    };
-
-    setMessages(prev => [...prev, userMessage]);
-    setInputValue('');
-    setIsLoading(true);
-    setError(null);
-
+  const send = useCallback(async (raw: string) => {
+    const content = raw.trim();
+    if (!content || loading) return;
+    const userMessage: ChatMessage = { id: crypto.randomUUID(), role: "user", content, timestamp: new Date() };
+    const assistantId = crypto.randomUUID();
+    setMessages((current) => [...current, userMessage, { id: assistantId, role: "assistant", content: "", timestamp: new Date() }]);
+    setInput(""); setLoading(true); setError(null); setRetryPrompt(null);
+    abortRef.current = new AbortController();
+    let activeRunId: string | null = null;
     try {
-      const startTime = Date.now();
-      
-      // Prepare context
-      const contextInfo = selectedContext.length > 0 
-        ? selectedContext.map(id => {
-            const item = contextItems.find(item => getItemId(item) === id);
-            if (!item) return '';
-            return `📄 ${item.displayName || item.name}:\n${item.extractedContent?.substring(0, 1000) || 'No content available'}...`;
-          }).filter(Boolean).join('\n\n')
-        : '';
-
-      // Prepare system prompt
-      const systemPrompt = `You are a helpful AI assistant powered by Groq Llama3 with OpenAI fallback. Help users with:
-- Generate flashcards from content
-- Create summaries and insights
-- Help with writing tasks (emails, reports, documents, etc.)
-- Answer questions about saved materials
-- Provide contextual assistance
-
-${featurePrompt ? `\nSPECIFIC TASK: ${featurePrompt}` : ''}
-
-${contextInfo ? `\nRELEVANT CONTEXT FROM USER'S SAVED CONTENT:\n${contextInfo}` : ''}
-
-Be concise but comprehensive. Use the provided context to give accurate answers. Reference specific saved items when relevant.`;
-
-      // Send to our custom API
-      const response = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${await getValidJWT() || ''}`
-        },
-        body: JSON.stringify({
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: content.trim() }
-          ],
-          userId: user?.id || 'anonymous',
-          chatId: chatId,
-          contextItems: selectedContext
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json();
-      const responseTime = Date.now() - startTime;
-
-      const assistantMessage: ChatMessage = {
-        id: `assistant-${Date.now()}`,
-        role: 'assistant',
-        content: data.response || 'I apologize, but I encountered an error processing your request.',
-        timestamp: new Date(),
-        metadata: {
-          responseTime,
-          provider: data.provider || 'unknown',
-          tokens: data.tokens,
-          contextItems: selectedContext
+      const jwt = await getValidJWT();
+      const response = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${jwt || ""}` }, body: JSON.stringify({ message: content, chatId, contextItemIds: selectedItems }), signal: abortRef.current.signal });
+      activeRunId = response.headers.get("X-Agent-Run-Id");
+      if (!response.ok) { const body = await response.json().catch(() => ({})); throw new Error(body.error || "The AI service is unavailable"); }
+      if (!response.body) throw new Error("Streaming response was unavailable");
+      const reader = response.body.getReader(); const decoder = new TextDecoder(); let buffer = "";
+      while (true) {
+        const { done, value } = await reader.read(); if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const packets = buffer.split("\n\n"); buffer = packets.pop() || "";
+        for (const packet of packets) {
+          const line = packet.split("\n").find((part) => part.startsWith("data:")); if (!line) continue;
+          const event = JSON.parse(line.slice(5).trim());
+          if (event.type === "message.delta") updateAssistant(assistantId, (message) => ({ ...message, content: message.content + (event.delta || "") }));
+          if (event.type === "tool.started") updateAssistant(assistantId, (message) => ({ ...message, toolEvents: [...(message.toolEvents || []), { type: "started", tool: event.tool }] }));
+          if (event.type === "tool.completed") updateAssistant(assistantId, (message) => ({ ...message, toolEvents: [...(message.toolEvents || []).filter((item) => !(item.tool === event.tool && item.type === "started")), { type: "completed", tool: event.tool }] }));
+          if (event.type === "citation") updateAssistant(assistantId, (message) => ({ ...message, citations: [...(message.citations || []), { label: event.label, title: event.title, locator: event.locator, sourceType: event.sourceType }] }));
+          if (event.type === "approval.required") updateAssistant(assistantId, (message) => ({ ...message, approval: { runId: event.runId, tool: event.requirements?.[0]?.tool || "sensitive action", arguments: event.requirements?.[0]?.arguments } }));
+          if (event.type === "done") updateAssistant(assistantId, (message) => ({ ...message, provider: event.provider || "vertex" }));
+          if (event.type === "error") throw new Error(event.message || "The agent run failed");
         }
-      };
-
-      setMessages(prev => [...prev, assistantMessage]);
-
-      // Track AI feature usage
-      await trackAIFeature({
-        feature: 'custom_chat',
-        performance: responseTime,
-        success: true,
-        userId: user?.id || 'anonymous',
-        metadata: {
-          messageLength: content.length,
-          contextItems: selectedContext.length,
-          provider: data.provider
-        }
-      });
-
-    } catch (error) {
-      console.error('Error sending message:', error);
-      setError('Failed to send message. Please try again.');
-      
-      const errorMessage: ChatMessage = {
-        id: `error-${Date.now()}`,
-        role: 'assistant',
-        content: 'I apologize, but I encountered an error processing your request. Please try again.',
-        timestamp: new Date(),
-        metadata: { provider: undefined }
-      };
-      
-      setMessages(prev => [...prev, errorMessage]);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [isLoading, selectedContext, contextItems, chatId, user?.id, getAuthenticatedFetch]);
-
-  // Auto-resize textarea helper function
-  const resizeTextarea = (textarea: HTMLTextAreaElement) => {
-    textarea.style.height = 'auto';
-    const scrollHeight = textarea.scrollHeight;
-    const minHeight = 36;
-    const maxHeight = 120;
-    
-    // Set height within bounds
-    const newHeight = Math.min(Math.max(scrollHeight, minHeight), maxHeight);
-    textarea.style.height = `${newHeight}px`;
-  };
-
-  // Handle feature selection
-  const handleFeatureSelect = (feature: ChatFeature) => {
-    const prompt = feature.prompt;
-    if (selectedContext.length === 0) {
-      setInputValue(prompt + ' ');
-    } else {
-      setInputValue(prompt + ' Please use the selected context items to help with this task. ');
-    }
-    setShowFeatures(false);
-    
-    // Focus and resize textarea after state update
-    setTimeout(() => {
-      if (textareaRef.current) {
-        textareaRef.current.focus();
-        resizeTextarea(textareaRef.current);
       }
-    }, 0);
-  };
-
-  // Handle input key press
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      sendMessage(inputValue);
-    }
-  };
-
-  // Auto-resize textarea based on content
-  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setInputValue(e.target.value);
-    resizeTextarea(e.target);
-  };
-
-  // Reset textarea height when input is cleared and resize when value changes
-  useEffect(() => {
-    if (textareaRef.current) {
-      if (inputValue === '') {
-        textareaRef.current.style.height = '36px';
-      } else {
-        // Resize when input value changes programmatically
-        resizeTextarea(textareaRef.current);
+    } catch (caught) {
+      const message = caught instanceof Error ? caught.message : "Could not complete the request";
+      if (activeRunId && message !== "The user aborted a request.") {
+        try {
+          const jwt = await getValidJWT();
+          const replay = await fetch(`/api/chat/runs/${activeRunId}/events`, { headers: { Authorization: `Bearer ${jwt || ""}` } });
+          if (replay.ok) {
+            const run = await replay.json();
+            const approvalEvent = [...(run.events || [])].reverse().find((event: any) => event.event_type === "approval.required");
+            if (run.status === "awaiting_approval" && approvalEvent) {
+              const requirement = approvalEvent.payload?.requirements?.[0];
+              updateAssistant(assistantId, (item) => ({ ...item, failed: false, approval: { runId: activeRunId!, tool: requirement?.tool || "sensitive action", arguments: requirement?.arguments }, content: item.content || "This action needs your confirmation." }));
+              return;
+            }
+            if (run.status === "completed") { await loadHistory(); return; }
+          }
+        } catch { /* normal retry UI below */ }
       }
-    }
-  }, [inputValue]);
+      if (message !== "The user aborted a request.") setError(message);
+      if (message !== "The user aborted a request.") setRetryPrompt(content);
+      updateAssistant(assistantId, (item) => ({ ...item, failed: true, content: item.content || "I could not complete that request. You can retry safely." }));
+    } finally { setLoading(false); abortRef.current = null; }
+  }, [chatId, loading, selectedItems, loadHistory]);
 
-  // Clear chat history
-  const clearChatHistory = async () => {
-    if (confirm('Clear all chat history? This action cannot be undone.')) {
-      try {
-        await fetch('/api/chat/clear', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId: user?.id || 'session', chatId })
-        });
-        setMessages([]);
-      } catch (error) {
-        console.error('Failed to clear chat history:', error);
-      }
-    }
+  const decideApproval = async (messageId: string, approval: Approval, approved: boolean) => {
+    try {
+      const jwt = await getValidJWT();
+      const response = await fetch(`/api/chat/runs/${approval.runId}/continue`, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${jwt || ""}` }, body: JSON.stringify({ approved }) });
+      const data = await response.json(); if (!response.ok) throw new Error(data.error || "Could not resume the run");
+      updateAssistant(messageId, (message) => ({ ...message, approval: data.paused ? { runId: data.runId, tool: data.requirements?.[0]?.tool || "sensitive action", arguments: data.requirements?.[0]?.arguments } : undefined, content: `${message.content}\n\n${approved ? data.content || (data.paused ? "Another confirmation is required." : "Action approved and completed.") : "Action declined."}` }));
+    } catch (caught) { setError(caught instanceof Error ? caught.message : "Could not resume the run"); }
   };
 
-  // Format timestamp
-  const formatTime = (timestamp: Date) => {
-    return timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const clear = async () => {
+    if (!confirm("Clear this conversation?")) return;
+    const jwt = await getValidJWT(); await fetch("/api/chat/clear", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${jwt || ""}` }, body: JSON.stringify({ chatId }) }); setMessages([]);
   };
 
-  // Loading state
-  if (isLoadingHistory) {
-    return (
-      <div className="flex flex-col h-full items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-        <p className="mt-2 text-sm text-muted-foreground">Loading chat history...</p>
-      </div>
-    );
-  }
+  if (historyLoading) return <div className="flex h-full items-center justify-center"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>;
 
-  return (
-    <div className="minimal-chat-sidebar">
-
-      {/* Messages Container */}
-      <ScrollArea className="minimal-chat-messages">
-        <div className="space-y-3">
-          {messages.length === 0 ? (
-            <div className="ultra-minimal-empty-state">
-              <div className="ultra-minimal-icon">
-                <Zap className="w-4 h-4 text-muted-foreground" />
-              </div>
-              <h3 className="ultra-minimal-title">Start a new conversation</h3>
-              <p className="ultra-minimal-description">
-                Ask me anything, generate flashcards, summarize content, write emails, and more.
-              </p>
-            </div>
-          ) : (
-            messages.map((message) => (
-              <div
-                key={message.id}
-                className={`minimal-chat-message-group ${message.role === 'user' ? 'user' : 'assistant'}`}
-              >
-                <div className="minimal-chat-message-avatar">
-                  {message.role === 'user' ? (
-                    <div className="w-6 h-6 rounded-full bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center">
-                      <User className="w-3 h-3 text-primary-foreground" />
-                    </div>
-                  ) : (
-                    <div className="w-6 h-6 rounded-full bg-gradient-to-br from-muted to-muted/80 flex items-center justify-center">
-                      <Brain className="w-3 h-3 text-muted-foreground" />
-                    </div>
-                  )}
-                </div>
-                
-                <div className="minimal-chat-message-content">
-                  <div className="minimal-chat-message-bubble">
-                    <div className="minimal-chat-message-text">
-                      {message.role === 'assistant' ? (
-                        <ReactMarkdown 
-                          className="prose prose-sm max-w-none dark:prose-invert prose-headings:text-foreground prose-p:text-foreground prose-strong:text-foreground prose-code:text-foreground prose-pre:bg-muted prose-pre:text-foreground"
-                          components={{
-                            p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
-                            h1: ({ children }) => <h1 className="text-lg font-bold mb-2">{children}</h1>,
-                            h2: ({ children }) => <h2 className="text-base font-bold mb-2">{children}</h2>,
-                            h3: ({ children }) => <h3 className="text-sm font-bold mb-1">{children}</h3>,
-                            ul: ({ children }) => <ul className="list-disc list-inside mb-2 space-y-1">{children}</ul>,
-                            ol: ({ children }) => <ol className="list-decimal list-inside mb-2 space-y-1">{children}</ol>,
-                            li: ({ children }) => <li className="text-xs">{children}</li>,
-                            code: ({ children, className }) => {
-                              const isInline = !className?.includes('language-');
-                              if (isInline) {
-                                return <code className="bg-muted px-1 py-0.5 rounded text-xs font-mono">{children}</code>;
-                              }
-                              return (
-                                <pre className="bg-muted p-2 rounded text-xs overflow-x-auto">
-                                  <code>{children}</code>
-                                </pre>
-                              );
-                            },
-                            blockquote: ({ children }) => (
-                              <blockquote className="border-l-2 border-muted-foreground pl-2 italic text-xs mb-2">
-                                {children}
-                              </blockquote>
-                            ),
-                            strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
-                            em: ({ children }) => <em className="italic">{children}</em>,
-                          }}
-                        >
-                          {message.content}
-                        </ReactMarkdown>
-                      ) : (
-                        message.content
-                      )}
-                    </div>
-                    
-                    {/* Message metadata */}
-                    {message.metadata && (
-                      <div className="minimal-chat-message-metadata">
-                        <div className="flex items-center gap-2">
-                          <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                            <Clock className="w-3 h-3" />
-                            {message.metadata.responseTime}ms
-                          </span>
-                          {message.metadata.provider && (
-                            <Badge variant="outline" className="text-xs px-1.5 py-0.5">
-                              {message.metadata.provider}
-                            </Badge>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                  
-                  <div className="minimal-chat-timestamp">
-                    {formatTime(message.timestamp)}
-                  </div>
-                </div>
-              </div>
-            ))
-          )}
-          
-          {/* Loading indicator */}
-          {isLoading && (
-            <div className="minimal-chat-message-group assistant">
-              <div className="minimal-chat-message-avatar">
-                <div className="w-6 h-6 rounded-full bg-gradient-to-br from-muted to-muted/80 flex items-center justify-center">
-                  <Brain className="w-3 h-3 text-muted-foreground" />
-                </div>
-              </div>
-              <div className="minimal-chat-message-content">
-                <div className="minimal-chat-typing">
-                  <div className="flex items-center gap-2">
-                    <Loader2 className="w-3 h-3 animate-spin text-primary" />
-                    <span className="text-xs text-muted-foreground">Thinking...</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-          
-          <div ref={messagesEndRef} />
-        </div>
-      </ScrollArea>
-
-      {/* Error display */}
-      {error && (
-        <div className="px-3 py-1">
-          <div className="minimal-chat-error">
-            <XCircle className="w-3 h-3 text-destructive" />
-            <span className="text-xs text-destructive">{error}</span>
-            <button
-              onClick={() => setError(null)}
-              className="text-destructive/70 hover:text-destructive p-0.5 rounded"
-            >
-              ×
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Context Selection */}
-      {showContext && (
-        <div className="px-2 py-1 border-t border-border/20">
-          <div className="minimal-context-panel-compact">
-            <div className="minimal-context-header-compact">
-              <div>
-                <div className="font-medium text-xs">Select context</div>
-                <div className="text-xs text-muted-foreground">Choose saved items to reference</div>
-              </div>
-              <button
-                onClick={() => setShowContext(false)}
-                className="text-muted-foreground hover:text-foreground p-0.5 rounded"
-              >
-                ×
-              </button>
-            </div>
-            <ScrollArea className="max-h-16 overflow-y-auto">
-              <div className="p-1 space-y-0.5">
-                {contextItems.length === 0 ? (
-                  <div className="p-1.5 text-center text-xs text-muted-foreground">
-                    No saved items found
-                  </div>
-                ) : (
-                  contextItems.map(item => (
-                    <button
-                      key={getItemId(item)}
-                      className={`minimal-context-item-compact ${
-                        selectedContext.includes(getItemId(item))
-                          ? 'selected'
-                          : ''
-                      }`}
-                      onClick={() => {
-                        setSelectedContext(prev =>
-                          prev.includes(getItemId(item))
-                            ? prev.filter(id => id !== getItemId(item))
-                            : [...prev, getItemId(item)]
-                        );
-                      }}
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="truncate text-xs">{item.displayName || item.name || 'Item'}</span>
-                        {selectedContext.includes(getItemId(item)) && (
-                          <CheckCircle className="w-3 h-3 text-primary" />
-                        )}
-                      </div>
-                    </button>
-                  ))
-                )}
-              </div>
-            </ScrollArea>
-          </div>
-        </div>
-      )}
-
-      {/* Features Panel */}
-      {showFeatures && (
-        <div className="px-3 py-2 border-t border-border/30">
-          <div className="minimal-features-panel">
-            <div className="minimal-features-header">
-              <div className="font-medium text-xs">AI Features</div>
-              <button
-                onClick={() => setShowFeatures(false)}
-                className="text-muted-foreground hover:text-foreground p-0.5 rounded"
-              >
-                ×
-              </button>
-            </div>
-            <div className="p-2 grid grid-cols-2 gap-2">
-              {chatFeatures.map(feature => (
-                <button
-                  key={feature.id}
-                  onClick={() => handleFeatureSelect(feature)}
-                  className="minimal-feature-item"
-                >
-                  <div className="minimal-feature-icon">
-                    {feature.icon}
-                  </div>
-                  <div className="text-left">
-                    <div className="font-medium text-xs">{feature.name}</div>
-                    <div className="text-xs text-muted-foreground">{feature.description}</div>
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Input Area */}
-      <div className="minimal-chat-input-area">
-        {/* Selected Context Display */}
-        {selectedContext.length > 0 && (
-          <div className="flex flex-wrap gap-1 mb-2">
-            {selectedContext.map(contextId => {
-              const item = contextItems.find(i => getItemId(i) === contextId);
-              if (!item) return null;
-              return (
-                <span
-                  key={contextId}
-                  className="minimal-context-badge"
-                  onClick={() => setSelectedContext(prev => prev.filter(id => id !== contextId))}
-                >
-                  {item.displayName || item.name || 'Item'} ×
-                </span>
-              );
-            })}
-          </div>
-        )}
-
-        {/* Compact Action Bar */}
-        <div className="ultra-minimal-action-bar">
-          <div className="ultra-minimal-feature-buttons">
-            {chatFeatures.slice(0, 4).map(feature => (
-              <button
-                key={feature.id}
-                onClick={() => handleFeatureSelect(feature)}
-                className="ultra-minimal-feature-btn"
-                title={feature.name}
-              >
-                {feature.icon}
-              </button>
-            ))}
-          </div>
-          
-          <div className="ultra-minimal-context-section">
-            <button
-              onClick={() => setShowContext(!showContext)}
-              className="ultra-minimal-context-btn"
-            >
-              <Brain className="w-3 h-3" />
-              <span className="text-xs">+ Context</span>
-              {selectedContext.length > 0 && (
-                <span className="ultra-minimal-badge">{selectedContext.length}</span>
-              )}
-            </button>
-            
-            {messages.length > 0 && (
-              <button
-                onClick={clearChatHistory}
-                className="ultra-minimal-clear-btn"
-                title="Clear chat"
-              >
-                <Trash2 className="w-3 h-3" />
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Input Field */}
-        <div className="minimal-chat-input">
-          <div className="minimal-input-container">
-            <Textarea
-              ref={textareaRef}
-              value={inputValue}
-              onChange={handleInputChange}
-              onKeyPress={handleKeyPress}
-              placeholder="Ask me anything..."
-              className="minimal-chat-textarea"
-              disabled={isLoading}
-              style={{ height: '36px' }}
-            />
-            <Button
-              size="sm"
-              onClick={() => sendMessage(inputValue)}
-              disabled={!inputValue.trim() || isLoading}
-              className="minimal-send-btn"
-            >
-              <Send className="w-3 h-3" />
-            </Button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-export default CustomChatSidebar;
+  return <div className="relative flex h-full min-h-0 flex-col bg-background">
+    {hasMoreHistory && historyCursor && <Button variant="secondary" size="sm" className="absolute left-1/2 top-12 z-20 -translate-x-1/2 shadow" onClick={() => void loadHistory(historyCursor)}>Load earlier</Button>}
+    <div className="flex items-center justify-between border-b px-3 py-2"><div className="flex items-center gap-2"><div className="rounded-md bg-primary/10 p-1.5"><Sparkles className="h-4 w-4 text-primary" /></div><div><p className="text-sm font-medium">Vio Assistant</p><p className="text-[11px] text-muted-foreground">Tools, memory, and your files</p></div></div><Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => void clear()} title="Clear conversation"><Trash2 className="h-4 w-4" /></Button></div>
+    <ScrollArea className="min-h-0 flex-1"><div className="space-y-5 p-3">{messages.length === 0 ? <div className="flex min-h-64 flex-col items-center justify-center px-4 text-center"><div className="mb-4 rounded-2xl bg-primary/10 p-3"><Brain className="h-6 w-6 text-primary" /></div><h2 className="font-semibold">What are you learning?</h2><p className="mt-1 text-xs leading-5 text-muted-foreground">Ask about your files, plan study work, or manage a classroom with transparent tool calls.</p><div className="mt-5 flex flex-wrap justify-center gap-2">{quickActions.map((action) => <Button key={action.label} variant="outline" size="sm" onClick={() => setInput(action.prompt)}>{action.label}</Button>)}</div></div> : messages.map((message) => <div key={message.id} className={cn("flex gap-2.5", message.role === "user" && "flex-row-reverse")}><div className={cn("mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full", message.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted")} >{message.role === "user" ? <User className="h-3.5 w-3.5" /> : <Bot className="h-3.5 w-3.5" />}</div><div className={cn("min-w-0 max-w-[88%]", message.role === "user" && "text-right")}><div className={cn("rounded-2xl px-3 py-2 text-left text-sm", message.role === "user" ? "rounded-tr-sm bg-primary text-primary-foreground" : "rounded-tl-sm border bg-card", message.failed && "border-destructive/40")}>
+      {message.role === "assistant" ? <Streamdown mode={loading && message.id === messages[messages.length - 1]?.id ? "streaming" : "static"} className="prose prose-sm max-w-none dark:prose-invert" controls={{ code: true, table: true }} linkSafety={{ enabled: true }}>{message.content}</Streamdown> : <p className="whitespace-pre-wrap">{message.content}</p>}
+      {message.toolEvents?.length ? <div className="mt-3 space-y-1 border-t pt-2">{message.toolEvents.map((event, index) => <div key={`${event.tool}-${index}`} className="flex items-center gap-2 text-[11px] text-muted-foreground">{event.type === "completed" ? <Check className="h-3 w-3 text-emerald-500" /> : <Loader2 className="h-3 w-3 animate-spin" />} {event.type === "completed" ? "Used" : "Using"} {event.tool}</div>)}</div> : null}
+      {message.citations?.length ? <div className="mt-3 flex flex-wrap gap-1.5 border-t pt-2">{message.citations.map((citation, index) => <Badge key={`${citation.label}-${index}`} variant="outline" title={citation.title || citation.label}>{citation.label}{citation.title ? ` · ${citation.title}` : ""}</Badge>)}</div> : null}
+      {message.approval ? <div className="mt-3 rounded-lg border border-amber-500/30 bg-amber-500/5 p-3"><p className="text-xs font-medium">Confirm sensitive action</p><p className="mt-1 text-xs text-muted-foreground">The agent wants to run <strong>{message.approval.tool}</strong>.</p>{message.approval.arguments && <pre className="mt-2 max-h-32 overflow-auto rounded bg-background/70 p-2 text-[10px]">{JSON.stringify(message.approval.arguments, null, 2)}</pre>}<div className="mt-3 flex gap-2"><Button size="sm" onClick={() => void decideApproval(message.id, message.approval!, true)}>Approve</Button><Button size="sm" variant="outline" onClick={() => void decideApproval(message.id, message.approval!, false)}>Decline</Button></div></div> : null}
+      </div><div className="mt-1 flex items-center gap-2 px-1 text-[10px] text-muted-foreground">{message.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}{message.provider && <Badge variant="outline" className="h-4 px-1 text-[9px]">{message.provider}</Badge>}{message.role === "assistant" && message.content && <button onClick={() => void navigator.clipboard.writeText(message.content)} title="Copy response"><Copy className="h-3 w-3" /></button>}</div></div></div>)}{loading && !messages[messages.length - 1]?.content ? <div className="flex items-center gap-2 px-10 text-xs text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" />Thinking and selecting tools…</div> : null}<div ref={endRef} /></div></ScrollArea>
+    <div aria-live="polite" className="sr-only">{loading ? "Vio is generating a response" : error || ""}</div>
+    {error && <div className="mx-3 mb-2 flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-2 text-xs text-destructive"><XCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" /><span className="flex-1">{error}</span>{retryPrompt && <Button size="sm" variant="outline" className="h-6" onClick={() => void send(retryPrompt)}>Retry</Button>}<button onClick={() => setError(null)}><X className="h-3.5 w-3.5" /></button></div>}
+    {showFiles && <div className="border-t bg-muted/20 p-2"><div className="mb-2 flex items-center justify-between"><p className="text-xs font-medium">Reference saved files</p><button onClick={() => setShowFiles(false)}><ChevronDown className="h-4 w-4" /></button></div><ScrollArea className="max-h-32"><div className="space-y-1">{items.length ? items.map((item) => { const itemId = item.id || item.$id || ""; const selected = selectedItems.includes(itemId); return <button key={itemId} onClick={() => setSelectedItems((current) => selected ? current.filter((id) => id !== itemId) : [...current, itemId])} className={cn("flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs hover:bg-muted", selected && "bg-primary/10 text-primary")}><FileText className="h-3.5 w-3.5" /><span className="flex-1 truncate">{item.displayName || item.title || "Untitled"}</span>{selected && <Check className="h-3.5 w-3.5" />}</button>; }) : <p className="py-3 text-center text-xs text-muted-foreground">No saved files</p>}</div></ScrollArea></div>}
+    <div className="border-t p-2"><div className="mb-2 flex gap-1 overflow-x-auto">{quickActions.map((action) => <Button key={action.label} variant="ghost" size="sm" className="h-7 shrink-0 text-[11px]" onClick={() => setInput(action.prompt)}>{action.label}</Button>)}</div><div className="flex items-end gap-2 rounded-xl border bg-card p-1.5 focus-within:ring-1 focus-within:ring-ring"><Button variant={selectedItems.length ? "secondary" : "ghost"} size="icon" className="h-8 w-8 shrink-0" onClick={() => setShowFiles((value) => !value)} title="Add file context"><Plus className="h-4 w-4" /></Button><Textarea value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void send(input); } }} placeholder="Ask Vio…" className="max-h-28 min-h-8 resize-none border-0 bg-transparent px-1 py-1.5 text-sm shadow-none focus-visible:ring-0" rows={1} />{loading ? <Button size="icon" variant="destructive" className="h-8 w-8 shrink-0" onClick={() => abortRef.current?.abort()}><X className="h-4 w-4" /></Button> : <Button size="icon" className="h-8 w-8 shrink-0" disabled={!input.trim()} onClick={() => void send(input)}><Send className="h-4 w-4" /></Button>}</div><p className="mt-1.5 text-center text-[10px] text-muted-foreground">AI can make mistakes. Sensitive actions require confirmation.</p></div>
+  </div>;
+}

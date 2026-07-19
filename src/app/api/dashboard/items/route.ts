@@ -149,7 +149,7 @@ export async function GET(request: NextRequest) {
              extractedContent: item.content,
              contentType: item.fileType,
              previewUrl: item.fileType?.startsWith('image/') ? item.fileUrl : (item.fileType === 'link' ? item.previewImageUrl : undefined),
-             favorite: false, // TODO: Implement favorites functionality
+             favorite: item.favorite,
              fileType: item.fileType,
              description: item.description,
              fileSize: item.fileSize,

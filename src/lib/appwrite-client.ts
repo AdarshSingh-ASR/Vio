@@ -1,4 +1,4 @@
-import { Account, Client, ID, Models, OAuthProvider } from "appwrite";
+import { Account, Client, ID, Models, OAuthProvider, Storage } from "appwrite";
 
 // Client-side Appwrite instance
 const createClientSideClient = () => {
@@ -14,6 +14,8 @@ export const clientSideClient = createClientSideClient();
 
 // Account service
 export const clientAccount = new Account(clientSideClient);
+export const clientStorage = new Storage(clientSideClient);
+export { ID };
 
 // Types
 export interface AppwriteUser extends Models.User<Models.Preferences> {
@@ -367,4 +369,4 @@ export const getCurrentSession = async () => {
   } catch (error) {
     return null;
   }
-}; 
+};
