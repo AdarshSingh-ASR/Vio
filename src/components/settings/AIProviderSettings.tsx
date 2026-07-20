@@ -111,7 +111,7 @@ export default function AIProviderSettings() {
     </Card>
 
     <Card>
-      <CardHeader><CardTitle className="flex items-center gap-2"><KeyRound className="h-5 w-5" />OpenAI API key</CardTitle><CardDescription>Encrypted with Cloud KMS in production. The key is never returned to this browser.</CardDescription></CardHeader>
+      <CardHeader><CardTitle className="flex items-center gap-2"><KeyRound className="h-5 w-5" />OpenAI API key</CardTitle><CardDescription>Encrypted with the application encryption key. The key is never returned to this browser.</CardDescription></CardHeader>
       <CardContent>{credential() ? <div className="flex items-center justify-between rounded-lg border p-4"><div className="flex items-center gap-3"><ShieldCheck className="h-5 w-5 text-emerald-500" /><div><p className="text-sm font-medium">Connected <Badge variant="outline" className="ml-2">•••• {credential()?.lastFour}</Badge></p><p className="text-xs text-muted-foreground">Validated with OpenAI</p></div></div><Button variant="ghost" size="sm" onClick={() => void revoke()} disabled={busy}><Trash2 className="mr-2 h-4 w-4" />Revoke</Button></div> : <div className="flex gap-2"><Input type="password" value={openAIKey} onChange={(event) => setOpenAIKey(event.target.value)} placeholder="sk-…" autoComplete="off" /><Button disabled={busy || openAIKey.length < 20} onClick={() => void connect()}>Connect</Button></div>}</CardContent>
     </Card>
   </div>;

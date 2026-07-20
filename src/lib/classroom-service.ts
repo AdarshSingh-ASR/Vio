@@ -201,11 +201,16 @@ export const classroomService = {
     }
     const status = input.status || assignment.status;
     if (!["draft", "published", "closed"].includes(status)) throw new ApiError(400, "Invalid assignment status", "ASSIGNMENT_STATUS_INVALID");
+    const rubricJson = input.rubric
+      ? JSON.stringify(input.rubric)
+      : typeof assignment.rubric_json === "string"
+        ? assignment.rubric_json
+        : JSON.stringify(assignment.rubric_json || []);
     await executeSingle(
       `UPDATE homework_assignments SET title=?, lesson_number=?, chapter_number=?, chapter_name=?, instructions=?, rubric_json=?, due_at=?, max_marks=?, allow_late=?, allow_resubmission=?, status=? WHERE id=? AND classroom_id=?`,
       [input.title ?? assignment.title, input.lessonNumber ?? assignment.lesson_number, input.chapterNumber ?? assignment.chapter_number,
        input.chapterName ?? assignment.chapter_name, input.instructions ?? assignment.instructions,
-       input.rubric ? JSON.stringify(input.rubric) : assignment.rubric_json, input.dueAt ? new Date(input.dueAt) : assignment.due_at,
+       rubricJson, input.dueAt ? new Date(input.dueAt) : assignment.due_at,
        input.maxMarks ?? assignment.max_marks, input.allowLate ?? Boolean(assignment.allow_late), input.allowResubmission ?? Boolean(assignment.allow_resubmission),
        status, assignmentId, classroomId]
     );

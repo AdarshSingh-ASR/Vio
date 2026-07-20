@@ -31,8 +31,8 @@ export class TiDBKnowledgeStore implements KnowledgeStore {
                 MATCH(kc.content) AGAINST (? IN NATURAL LANGUAGE MODE) AS relevance
          FROM knowledge_chunks kc JOIN knowledge_documents kd ON kd.id=kc.document_id
          WHERE kd.user_id=? AND kd.status='ready' AND MATCH(kc.content) AGAINST (? IN NATURAL LANGUAGE MODE)
-         ORDER BY relevance DESC, kc.chunk_index ASC LIMIT ?`,
-        [input.query, input.userId, input.query, limit]
+         ORDER BY relevance DESC, kc.chunk_index ASC LIMIT ${limit}`,
+        [input.query, input.userId, input.query]
       );
     } catch {
       const terms = input.query.toLowerCase().split(/\W+/).filter((term) => term.length > 2).slice(0, 8);
@@ -43,8 +43,8 @@ export class TiDBKnowledgeStore implements KnowledgeStore {
                 LEFT(kc.content, 5000) AS content, kc.locator, 1 AS relevance
          FROM knowledge_chunks kc JOIN knowledge_documents kd ON kd.id=kc.document_id
          WHERE kd.user_id=? AND kd.status='ready' AND (${conditions})
-         ORDER BY kd.updated_at DESC, kc.chunk_index ASC LIMIT ?`,
-        [input.userId, ...terms.map((term) => `%${term}%`), limit]
+         ORDER BY kd.updated_at DESC, kc.chunk_index ASC LIMIT ${limit}`,
+        [input.userId, ...terms.map((term) => `%${term}%`)]
       );
     }
 
@@ -57,8 +57,8 @@ export class TiDBKnowledgeStore implements KnowledgeStore {
                 VEC_COSINE_DISTANCE(kc.embedding_vector, ?) AS distance
          FROM knowledge_chunks kc JOIN knowledge_documents kd ON kd.id=kc.document_id
          WHERE kd.user_id=? AND kd.status='ready' AND kc.embedding_vector IS NOT NULL
-         ORDER BY distance ASC LIMIT ?`,
-        [JSON.stringify(embedding), input.userId, Math.min(limit * 3, 50)],
+         ORDER BY distance ASC LIMIT ${Math.min(limit * 3, 50)}`,
+        [JSON.stringify(embedding), input.userId],
       );
     } catch (error) {
       // Vector capability is optional during migration or a provider outage; lexical retrieval remains available.
