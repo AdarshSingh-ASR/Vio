@@ -28,8 +28,8 @@ class IngestionPendingError(RuntimeError):
 def _connection():
     if os.getenv("AGNO_DATABASE_URL"):
         parsed = urlparse(os.environ["AGNO_DATABASE_URL"].replace("mysql+pymysql", "mysql"))
-        return pymysql.connect(host=parsed.hostname, port=parsed.port or 4000, user=parsed.username, password=parsed.password, database=parsed.path.lstrip("/"), ssl={} if os.getenv("TIDB_SSL", "true") == "true" else None, cursorclass=pymysql.cursors.DictCursor)
-    return pymysql.connect(host=os.getenv("TIDB_HOST", "localhost"), port=int(os.getenv("TIDB_PORT", "4000")), user=os.getenv("TIDB_USER", "root"), password=os.getenv("TIDB_PASSWORD", ""), database=os.getenv("TIDB_DATABASE", "vio_database"), ssl={} if os.getenv("TIDB_SSL") == "true" else None, cursorclass=pymysql.cursors.DictCursor)
+        return pymysql.connect(host=parsed.hostname, port=parsed.port or 4000, user=parsed.username, password=parsed.password, database=parsed.path.lstrip("/"), ssl={} if os.getenv("TIDB_SSL", "true").lower() == "true" else None, cursorclass=pymysql.cursors.DictCursor)
+    return pymysql.connect(host=os.getenv("TIDB_HOST", "localhost"), port=int(os.getenv("TIDB_PORT", "4000")), user=os.getenv("TIDB_USER", "root"), password=os.getenv("TIDB_PASSWORD", ""), database=os.getenv("TIDB_DATABASE", "vio_database"), ssl={} if os.getenv("TIDB_SSL", "true").lower() == "true" else None, cursorclass=pymysql.cursors.DictCursor)
 
 
 async def _owner_openai_key(agent_token: str) -> str:
