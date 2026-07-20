@@ -8,12 +8,12 @@ const Quizes = () => {
   const pathname = usePathname();
 
   return (
-    <div className="mt-14">
+    <div className="mt-8">
       <h2 
         className="flex items-center gap-2 text-xs font-medium text-sidebar-foreground/60 px-3 mb-2 uppercase tracking-wide"
         title="Quizes"
       >
-        <GraduationCap className="w-4 h-4" />
+        <GraduationCap className="w-5 h-5 shrink-0 p-0.5" />
         Quizes
       </h2>
       <div className="space-y-0.5">
@@ -22,25 +22,22 @@ const Quizes = () => {
           title="Quizes Taken"
           href="/dashboard/quizes/taken"
           selected={pathname === "/dashboard/quizes/taken"}
-          className="ml-2"
         />
         <SidebarItem
           icon={<FileText className="w-4 h-4" />}
           title="Quiz"
           href="/dashboard/quizes/quiz"
           selected={pathname === "/dashboard/quizes/quiz"}
-          className="ml-2"
         />
         <SidebarItem
           icon={<Headphones className="w-4 h-4" />}
           title="Listening Test"
           href="/dashboard/quizes/listening"
           selected={pathname === "/dashboard/quizes/listening"}
-          className="ml-2"
         />
       </div>
     </div>
   );
 };
 
-export default Quizes; 
+export default Quizes;

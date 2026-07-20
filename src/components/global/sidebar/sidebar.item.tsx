@@ -23,7 +23,7 @@ export const SidebarItem = ({
       href={href}
       title={title}
       className={cn(
-        "flex flex-row items-center gap-2 px-3 py-1.5 rounded-md transition-colors duration-150",
+        "flex min-h-9 items-center gap-2.5 px-3 py-1.5 rounded-md transition-colors duration-150",
         "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground group",
         selected ? "text-primary bg-sidebar-accent/50" : "text-sidebar-foreground",
         isNote && "pl-6",
@@ -33,7 +33,7 @@ export const SidebarItem = ({
       {icon && (
         <div
           className={cn(
-            "flex items-center justify-center w-5 h-5 transition-colors duration-150 flex-shrink-0",
+            "flex h-5 w-5 shrink-0 items-center justify-center transition-colors duration-150",
             selected ? "text-primary" : "text-sidebar-foreground",
             "group-hover:text-sidebar-accent-foreground"
           )}
