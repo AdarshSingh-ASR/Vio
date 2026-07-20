@@ -1125,6 +1125,10 @@ body.sheet-open .workspace-selector-btn .w-6.h-6 {
   box-shadow: 0 0 0 3px color-mix(in oklab, var(--primary) 10%, transparent);
 }
 
+.chat-sheet-content .mt-1\.5.text-center.text-\[10px\].text-muted-foreground {
+  display: none;
+}
+
 /* Minimal Chat Sidebar */
 .minimal-chat-sidebar {
   height: 100%;
