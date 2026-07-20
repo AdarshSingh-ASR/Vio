@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Brain, Check, ChevronDown, Copy, FileText, Loader2, Plus, Send, Sparkles, Trash2, User, X, XCircle } from "lucide-react";
+import { Brain, Check, ChevronDown, Copy, FileText, Loader2, Plus, Send, Trash2, User, X, XCircle } from "lucide-react";
 import { Streamdown } from "streamdown";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -27,7 +27,7 @@ const quickActions = [
 
 const Bot = ({ className }: { className?: string }) => <Image src={vioLogo} alt="Vio" width={15} height={15} className={cn("h-[15px] w-[15px]", className)} />;
 
-export default function CustomChatSidebar() {
+export default function CustomChatSidebar({ onClose }: { onClose: () => void }) {
   const { getAuthenticatedFetch, user } = useAuth();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
@@ -150,7 +150,7 @@ export default function CustomChatSidebar() {
 
   return <div className="relative flex h-full min-h-0 flex-col bg-background">
     {hasMoreHistory && historyCursor && <Button variant="secondary" size="sm" className="absolute left-1/2 top-12 z-20 -translate-x-1/2 shadow" onClick={() => void loadHistory(historyCursor)}>Load earlier</Button>}
-    <div className="flex items-center justify-end border-b bg-background/95 px-4 py-2.5 backdrop-blur"><div className="flex items-center gap-1"><Button variant="ghost" size="sm" className="h-8 rounded-lg px-2.5 text-xs" onClick={() => void startNewChat()}><Plus className="mr-1 h-3.5 w-3.5" />New chat</Button><Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg text-muted-foreground" onClick={() => void clear()} title="Delete conversation"><Trash2 className="h-4 w-4" /></Button></div></div>
+    <div className="flex items-center justify-between border-b bg-background/95 px-4 py-2.5 backdrop-blur"><Image src={vioLogo} alt="Vio" width={48} height={24} /><div className="flex items-center gap-1"><Button variant="ghost" size="sm" className="h-8 rounded-lg px-2.5 text-xs" onClick={() => void startNewChat()}><Plus className="mr-1 h-3.5 w-3.5" />New chat</Button><Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg text-muted-foreground" onClick={() => void clear()} title="Delete conversation"><Trash2 className="h-4 w-4" /></Button><Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg text-muted-foreground" onClick={onClose} title="Close chat"><X className="h-4 w-4" /></Button></div></div>
     <ScrollArea className="min-h-0 flex-1"><div className="space-y-5 p-3">{messages.length === 0 ? <div className="flex min-h-64 flex-col items-center justify-center px-4 text-center"><div className="mb-4 rounded-2xl bg-primary/10 p-3"><Brain className="h-6 w-6 text-primary" /></div><h2 className="font-semibold">What are you learning?</h2><p className="mt-1 text-xs leading-5 text-muted-foreground">Ask about your files, plan study work, or manage a classroom with transparent tool calls.</p><div className="mt-5 flex flex-wrap justify-center gap-2">{quickActions.map((action) => <Button key={action.label} variant="outline" size="sm" onClick={() => setInput(action.prompt)}>{action.label}</Button>)}</div></div> : messages.map((message) => <div key={message.id} className={cn("flex gap-2.5", message.role === "user" && "flex-row-reverse")}><div className={cn("mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full", message.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted")} >{message.role === "user" ? <User className="h-3.5 w-3.5" /> : <Bot className="h-3.5 w-3.5" />}</div><div className={cn("min-w-0 max-w-[88%]", message.role === "user" && "text-right")}><div className={cn("rounded-2xl px-3 py-2 text-left text-sm", message.role === "user" ? "rounded-tr-sm bg-primary text-primary-foreground" : "rounded-tl-sm border bg-card", message.failed && "border-destructive/40")}>
       {message.role === "assistant" ? <Streamdown mode={loading && message.id === messages[messages.length - 1]?.id ? "streaming" : "static"} className="prose prose-sm max-w-none dark:prose-invert" controls={{ code: true, table: true }} linkSafety={{ enabled: true }}>{message.content}</Streamdown> : <p className="whitespace-pre-wrap">{message.content}</p>}
       {message.toolEvents?.length ? <div className="mt-3 space-y-1 border-t pt-2">{message.toolEvents.map((event, index) => <div key={`${event.tool}-${index}`} className="flex items-center gap-2 text-[11px] text-muted-foreground">{event.type === "completed" ? <Check className="h-3 w-3 text-emerald-500" /> : <Loader2 className="h-3 w-3 animate-spin" />} {event.type === "completed" ? "Used" : "Using"} {event.tool}</div>)}</div> : null}

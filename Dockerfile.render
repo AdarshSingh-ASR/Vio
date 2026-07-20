@@ -34,6 +34,8 @@ COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/services/agent/app ./agent/app
 COPY scripts/start-render.sh ./scripts/start-render.sh
+COPY scripts/migrate.js ./scripts/migrate.js
+COPY migrations ./migrations
 RUN groupadd --system --gid 1001 nodejs && useradd --system --uid 1001 --gid nodejs nextjs \
   && chown -R nextjs:nodejs /app /opt/vio-agent-venv
 USER nextjs

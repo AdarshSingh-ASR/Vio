@@ -40,11 +40,13 @@ CREATE TABLE IF NOT EXISTS agno_memories (
 
 -- migrate:split
 ALTER TABLE approval_requests
-  ADD COLUMN requirement_id VARCHAR(255) NULL AFTER tool_execution_id,
-  ADD COLUMN decision_note TEXT NULL AFTER status;
+  ADD COLUMN IF NOT EXISTS requirement_id VARCHAR(255) NULL AFTER tool_execution_id,
+  ADD COLUMN IF NOT EXISTS decision_note TEXT NULL AFTER status;
 
 -- migrate:split
 ALTER TABLE agent_runs
-  ADD COLUMN allow_built_in_fallback BOOLEAN DEFAULT FALSE AFTER model,
-  ADD COLUMN context_item_ids JSON NULL AFTER allow_built_in_fallback;
+  ADD COLUMN IF NOT EXISTS allow_built_in_fallback BOOLEAN DEFAULT FALSE AFTER model;
 
+-- migrate:split
+ALTER TABLE agent_runs
+  ADD COLUMN IF NOT EXISTS context_item_ids JSON NULL AFTER allow_built_in_fallback;

@@ -11,5 +11,8 @@ CREATE TABLE IF NOT EXISTS classroom_invite_attempts (
 
 -- migrate:split
 ALTER TABLE classroom_invites
-  ADD COLUMN revoked_by VARCHAR(255) NULL AFTER revoked_at,
+  ADD COLUMN IF NOT EXISTS revoked_by VARCHAR(255) NULL AFTER revoked_at;
+
+-- migrate:split
+ALTER TABLE classroom_invites
   ADD CONSTRAINT fk_invite_revoker FOREIGN KEY (revoked_by) REFERENCES users(id) ON DELETE SET NULL;

@@ -16,6 +16,7 @@ fi
 
 export AGENT_SERVICE_URL="${AGENT_SERVICE_URL:-http://127.0.0.1:8081}"
 export VIO_INTERNAL_API_URL="${VIO_INTERNAL_API_URL:-http://127.0.0.1:${PORT:-10000}}"
+node /app/scripts/migrate.js
 uvicorn app.main:app --app-dir /app/agent --host 127.0.0.1 --port 8081 &
 agent_pid=$!
 

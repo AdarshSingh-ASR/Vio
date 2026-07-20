@@ -20,21 +20,21 @@ services:
       - key: APPWRITE_API_KEY
         sync: false
       - key: APPWRITE_FILES_BUCKET_ID
-        sync: false
+        value: 6a5d12970002847e1852
       - key: APPWRITE_IMAGES_BUCKET_ID
-        sync: false
+        value: 6a5d12970002847e1852
       - key: APPWRITE_VIDEOS_BUCKET_ID
-        sync: false
+        value: 6a5d12970002847e1852
       - key: NEXT_PUBLIC_APPWRITE_ENDPOINT
         sync: false
       - key: NEXT_PUBLIC_APPWRITE_PROJECT_ID
         sync: false
       - key: NEXT_PUBLIC_APPWRITE_FILES_BUCKET_ID
-        sync: false
+        value: 6a5d12970002847e1852
       - key: NEXT_PUBLIC_APPWRITE_IMAGES_BUCKET_ID
-        sync: false
+        value: 6a5d12970002847e1852
       - key: NEXT_PUBLIC_APPWRITE_VIDEOS_BUCKET_ID
-        sync: false
+        value: 6a5d12970002847e1852
       - key: NEXT_PUBLIC_APP_URL
         value: https://vio-pcuh.onrender.com
       - key: TIDB_HOST

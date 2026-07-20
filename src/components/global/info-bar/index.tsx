@@ -5,8 +5,6 @@ import { UserButton } from "@/components/auth/UserButton";
 import { Search, UploadIcon, Video, Send } from "lucide-react";
 import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
-import Image from "next/image";
-import vioLogo from "@/assets/images/vio.svg";
 import vector from "@/assets/images/Vector.svg";
 import { useChatSheet } from "@/context/ChatSheetContext";
 import { useSidebarSheet } from "@/context/SidebarContext";
@@ -39,8 +37,8 @@ type ChatMessage = {
 };
 
 // Custom Chat Interface Component
-const ChatInterface = () => {
-  return <CustomChatSidebar />;
+const ChatInterface = ({ onClose }: { onClose: () => void }) => {
+  return <CustomChatSidebar onClose={onClose} />;
 };
 
 const InfoBar = () => {
@@ -209,15 +207,9 @@ const InfoBar = () => {
           noOverlay={true}
           data-chat-sheet="true"
         >
-          {/* Custom Chat Header with Vio logo */}
-          <div className="flex items-center gap-2 border-b border-border bg-card/95 px-4 py-2.5 backdrop-blur flex-shrink-0" style={{ minHeight: 48 }}>
-            <Image src={vioLogo} alt="Vio" width={48} height={24} />
-            <button onClick={closeSheet} className="ml-auto rounded-md p-1 text-lg leading-none text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" aria-label="Close Vio Assistant">&times;</button>
-          </div>
-          
           {/* Custom Chat Interface */}
           <div className="flex-1 min-h-0 overflow-hidden mb-1">
-                <ChatInterface />
+                <ChatInterface onClose={closeSheet} />
           </div>
         </SheetContent>
       </Sheet>

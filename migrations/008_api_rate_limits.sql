@@ -5,4 +5,4 @@ CREATE TABLE api_rate_limits (
   request_count INT NOT NULL DEFAULT 0,
   PRIMARY KEY (user_id, route_key),
   CONSTRAINT fk_api_rate_limit_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
