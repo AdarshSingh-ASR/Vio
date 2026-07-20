@@ -36,7 +36,7 @@ services:
       - key: NEXT_PUBLIC_APPWRITE_VIDEOS_BUCKET_ID
         sync: false
       - key: NEXT_PUBLIC_APP_URL
-        sync: false
+        value: https://vio-pcuh.onrender.com
       - key: TIDB_HOST
         sync: false
       - key: TIDB_PORT
