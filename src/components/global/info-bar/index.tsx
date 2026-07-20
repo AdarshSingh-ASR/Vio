@@ -210,9 +210,10 @@ const InfoBar = () => {
           data-chat-sheet="true"
         >
           {/* Custom Chat Header with Vio logo */}
-          <div className="flex items-center gap-2 px-6 py-4 bg-card border-b border-border flex-shrink-0" style={{ minHeight: 60 }}>
-            <Image src={vioLogo} alt="vio" width={64} height={32} />
-            <button onClick={closeSheet} className="ml-auto text-muted-foreground hover:text-primary text-2xl font-bold">&times;</button>
+          <div className="flex items-center gap-2 border-b border-border bg-card/95 px-4 py-2.5 backdrop-blur flex-shrink-0" style={{ minHeight: 48 }}>
+            <Image src={vioLogo} alt="Vio" width={48} height={24} />
+            <span className="rounded-full border border-border bg-muted/50 px-2 py-0.5 text-[10px] font-medium text-muted-foreground">Study workspace</span>
+            <button onClick={closeSheet} className="ml-auto rounded-md p-1 text-lg leading-none text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" aria-label="Close Vio Assistant">&times;</button>
           </div>
           
           {/* Custom Chat Interface */}

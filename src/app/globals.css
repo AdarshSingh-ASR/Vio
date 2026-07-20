@@ -1101,6 +1101,30 @@ body.sheet-open .workspace-selector-btn .w-6.h-6 {
 
 /* ===== MINIMAL CHAT SIDEBAR STYLES ===== */
 
+/* Vio assistant: quiet, focused study-chat surfaces */
+.chat-sheet-content .min-h-64 {
+  min-height: 340px;
+  margin: 0.25rem;
+  border: 1px dashed color-mix(in oklab, var(--primary) 24%, transparent);
+  border-radius: 1rem;
+  background: linear-gradient(180deg, color-mix(in oklab, var(--primary) 7%, var(--background)), var(--background) 58%);
+}
+
+.chat-sheet-content .min-h-64 > .mb-4 {
+  border: 1px solid color-mix(in oklab, var(--primary) 16%, transparent);
+  box-shadow: 0 10px 24px color-mix(in oklab, var(--primary) 8%, transparent);
+}
+
+.chat-sheet-content .rounded-xl.border.bg-card.p-1\.5 {
+  border-color: var(--border);
+  box-shadow: 0 8px 24px color-mix(in oklab, var(--foreground) 5%, transparent);
+}
+
+.chat-sheet-content .rounded-xl.border.bg-card.p-1\.5:focus-within {
+  border-color: color-mix(in oklab, var(--primary) 55%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--primary) 10%, transparent);
+}
+
 /* Minimal Chat Sidebar */
 .minimal-chat-sidebar {
   height: 100%;
@@ -2405,4 +2429,3 @@ body.sheet-open .workspace-selector-btn .w-6.h-6 > * {
   visibility: visible !important;
   opacity: 1 !important;
 }
-
