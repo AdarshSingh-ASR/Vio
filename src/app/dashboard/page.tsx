@@ -414,11 +414,11 @@ const DashboardPageContent = () => {
 
         {/* Upload Form */}
         <form onSubmit={handleSubmit} className="mb-12 flex justify-center">
-          <div className="relative max-w-2xl w-full">
+          <div className="flex w-full max-w-2xl items-center overflow-hidden rounded-lg border border-border bg-card transition-colors focus-within:border-primary focus-within:ring-1 focus-within:ring-primary">
         <input
           type="text"
               placeholder="Paste URL or upload a file"
-              className="w-full px-4 py-3 text-sm bg-card border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-colors pr-32 dashboard-upload-input"
+              className="min-w-0 flex-1 bg-transparent px-4 py-3 text-sm outline-none"
           value={file ? file.name : input}
           onChange={e => {
             setInput(e.target.value);
@@ -431,16 +431,16 @@ const DashboardPageContent = () => {
           className="hidden"
           onChange={handleFileChange}
         />
-            <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-2 dashboard-input-actions">
+            <div className="flex shrink-0 items-center gap-1 pr-2">
         <label
           htmlFor="file-upload"
-                className="cursor-pointer p-1.5 text-muted-foreground hover:text-foreground transition-colors dashboard-upload-label"
+                className="cursor-pointer rounded p-1.5 text-muted-foreground transition-colors hover:text-foreground"
         >
                 <Upload size={16} />
         </label>
         <button
           type="submit"
-                className="px-4 py-1.5 text-sm bg-primary text-primary-foreground rounded-md font-medium disabled:opacity-50 hover:opacity-90 transition-opacity dashboard-save-btn"
+                className="shrink-0 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
           disabled={loading}
         >
           {loading ? 'Saving...' : 'Save'}
