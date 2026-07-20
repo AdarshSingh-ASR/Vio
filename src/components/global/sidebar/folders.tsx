@@ -16,7 +16,7 @@ const Folders = () => {
         className="flex items-center gap-2 text-xs font-medium text-sidebar-foreground/60 px-3 mb-2 uppercase tracking-wide"
         title="Folders"
       >
-        <AiFillFolder className="w-5 h-5 shrink-0 p-0.5" />Folders
+        <AiFillFolder className="w-4 h-4" />Folders
       </h2>
       {loading ? (
         <div className="px-3 text-xs text-muted-foreground">Loading...</div>
@@ -36,6 +36,7 @@ const Folders = () => {
                 title={folder.name}
                 href={`/dashboard/folder/${folder.$id}`}
                 selected={isSelected}
+                className="ml-2"
               />
             );
           })}
@@ -45,4 +46,4 @@ const Folders = () => {
   );
 };
 
-export default Folders;
+export default Folders; 

@@ -8,13 +8,11 @@ export default function ClassroomsNav() {
   const pathname = usePathname();
 
   return (
-    <div className="mt-8">
-      <SidebarItem
-        title="Classrooms"
-        href="/dashboard/classrooms"
-        icon={<GraduationCap className="h-4 w-4" />}
-        selected={pathname.startsWith("/dashboard/classrooms")}
-      />
-    </div>
+    <SidebarItem
+      title="Classrooms"
+      href="/dashboard/classrooms"
+      icon={<GraduationCap className="h-4 w-4" />}
+      selected={pathname.startsWith("/dashboard/classrooms")}
+    />
   );
 }
