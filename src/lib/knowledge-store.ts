@@ -23,30 +23,17 @@ function parseLocator(value: unknown) {
 export class TiDBKnowledgeStore implements KnowledgeStore {
   async searchOwned(input: { userId: string; query: string; limit?: number }) {
     const limit = Math.min(Math.max(input.limit || 5, 1), 20);
-    let lexicalRows: any[];
-    try {
-      lexicalRows = await executeQuery<any>(
-        `SELECT kc.id AS chunk_id, kd.id AS document_id, kd.file_name,
-                LEFT(kc.content, 5000) AS content, kc.locator,
-                MATCH(kc.content) AGAINST (? IN NATURAL LANGUAGE MODE) AS relevance
-         FROM knowledge_chunks kc JOIN knowledge_documents kd ON kd.id=kc.document_id
-         WHERE kd.user_id=? AND kd.status='ready' AND MATCH(kc.content) AGAINST (? IN NATURAL LANGUAGE MODE)
-         ORDER BY relevance DESC, kc.chunk_index ASC LIMIT ${limit}`,
-        [input.query, input.userId, input.query]
-      );
-    } catch {
-      const terms = input.query.toLowerCase().split(/\W+/).filter((term) => term.length > 2).slice(0, 8);
-      if (!terms.length) return [];
-      const conditions = terms.map(() => "LOWER(kc.content) LIKE ?").join(" OR ");
-      lexicalRows = await executeQuery<any>(
-        `SELECT kc.id AS chunk_id, kd.id AS document_id, kd.file_name,
-                LEFT(kc.content, 5000) AS content, kc.locator, 1 AS relevance
-         FROM knowledge_chunks kc JOIN knowledge_documents kd ON kd.id=kc.document_id
-         WHERE kd.user_id=? AND kd.status='ready' AND (${conditions})
-         ORDER BY kd.updated_at DESC, kc.chunk_index ASC LIMIT ${limit}`,
-        [input.userId, ...terms.map((term) => `%${term}%`)]
-      );
-    }
+    const terms = input.query.toLowerCase().split(/\W+/).filter((term) => term.length > 2).slice(0, 8);
+    if (!terms.length) return [];
+    const conditions = terms.map(() => "LOWER(kc.content) LIKE ?").join(" OR ");
+    const lexicalRows = await executeQuery<any>(
+      `SELECT kc.id AS chunk_id, kd.id AS document_id, kd.file_name,
+              LEFT(kc.content, 5000) AS content, kc.locator, 1 AS relevance
+       FROM knowledge_chunks kc JOIN knowledge_documents kd ON kd.id=kc.document_id
+       WHERE kd.user_id=? AND kd.status='ready' AND (${conditions})
+       ORDER BY kd.updated_at DESC, kc.chunk_index ASC LIMIT ${limit}`,
+      [input.userId, ...terms.map((term) => `%${term}%`)]
+    );
 
     let vectorRows: any[] = [];
     try {
