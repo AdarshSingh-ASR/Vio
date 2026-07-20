@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import vioImage from "@/assets/images/vio.svg";
 // import chromeImage from "@/assets/images/chromeImage.svg"
 import bgImage from "@/assets/images/backgroundImage.png"
-import { Upload, Send } from "lucide-react";
+import { Check, Upload, Send } from "lucide-react";
 import vector from "@/assets/images/Vector.svg"
 import { useAuth } from "@/context/AuthContext";
 import { useRouter } from "next/navigation";
@@ -14,12 +14,12 @@ import { uploadClassroomFilesDirect } from "@/lib/classroom-upload-client";
 export default function Home() {
 
   const features = [
-    "chat with documents, images, videos & web links",
-    "AI study agents that guide & plan your learning",
-    "flashcards/highlights",
-    "smart summaries",
-    "adaptive quizzes",
-    "listening tests",
+    "Chat with documents and links",
+    "Plan with AI study agents",
+    "Create flashcards and highlights",
+    "Generate grounded summaries",
+    "Practice with adaptive quizzes",
+    "Train with listening tests",
  ];
 
   const { user, getAuthenticatedFetch } = useAuth();
@@ -103,12 +103,13 @@ export default function Home() {
         </p>
         
         {/* Upload Form */}
-        <form onSubmit={handleSubmit} className="w-full max-w-2xl mb-8">
-          <div className="flex bg-card border border-border rounded-lg p-2 shadow-sm">
+        <form onSubmit={handleSubmit} className="mb-8 w-full max-w-3xl">
+          <div className="flex min-w-0 items-center gap-2 rounded-2xl border border-border bg-card/95 p-2 shadow-sm transition-all focus-within:border-primary/40 focus-within:ring-4 focus-within:ring-primary/5">
             <input
               type="text"
               placeholder={file ? file.name : "Paste URL or upload a file"}
-              className="bg-transparent px-4 py-2 flex-1 text-sm outline-none placeholder:text-muted-foreground"
+              aria-label="Paste a learning resource URL"
+              className="min-w-0 flex-1 bg-transparent px-3 py-2.5 text-sm outline-none placeholder:text-muted-foreground sm:px-4"
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
             />
@@ -120,31 +121,36 @@ export default function Home() {
             />
             <label
               htmlFor="file-upload"
-              className="cursor-pointer text-muted-foreground hover:text-foreground flex items-center mr-2 p-1"
+              aria-label="Upload a learning resource"
+              title="Upload a file"
+              className="inline-flex h-10 w-10 flex-shrink-0 cursor-pointer items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             >
-              <Upload size={18} />
+              <Upload className="h-[18px] w-[18px]" />
             </label>
             <Button
               type="submit"  
-              className="whitespace-nowrap px-6 py-2 text-sm font-medium"
+              className="h-10 flex-shrink-0 whitespace-nowrap rounded-xl px-4 text-sm font-semibold shadow-sm sm:px-6"
               disabled={!inputValue && !file}
             >
-              {isSignedIn ? 'Get Started' : 'Get Started'}
+              Add to Vio
             </Button>
           </div>
+          <p className="mt-2.5 px-1 text-left text-xs text-muted-foreground">
+            Add a file or link, then turn it into answers, notes, quizzes, and study plans.
+          </p>
         </form>
 
         {/* Features */}
-        <div className="flex flex-wrap gap-3 items-center justify-center max-w-3xl">
+        <div className="grid w-full max-w-3xl grid-cols-1 gap-3 text-left sm:grid-cols-2 lg:grid-cols-3">
           {features.map((feature) => (
             <div
               key={feature} 
-              className="text-foreground bg-card flex items-center justify-between px-4 py-2 rounded-lg gap-2 border border-border shadow-sm"
+              className="flex min-h-14 items-center gap-3 rounded-xl border border-border bg-card/80 px-4 py-3 text-foreground shadow-sm transition-colors hover:border-primary/25 hover:bg-card"
             >
-              <span className="text-sm font-medium flex-1">{feature}</span>
-              <span className="text-white w-4 h-4 flex-shrink-0 rounded-full inline-flex justify-center items-center text-xs bg-green-500">
-                ✓
+              <span className="inline-flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                <Check className="h-3.5 w-3.5" strokeWidth={2.5} aria-hidden="true" />
               </span>
+              <span className="text-sm font-medium leading-5">{feature}</span>
             </div>
           ))}
         </div>
