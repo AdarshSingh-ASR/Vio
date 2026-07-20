@@ -9,8 +9,23 @@ import { ChatSheetProvider } from "@/context/ChatSheetContext";
 import { AuthProvider } from "@/context/AuthContext";
 
 export const metadata: Metadata = {
-  title: "vio",
-  description: "Your intelligent writing and research companion.",
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"),
+  title: "Vio — AI learning with teachers in control",
+  description: "An evidence-grounded AI education workspace for classrooms, assignments, study agents, and human-reviewed feedback.",
+  openGraph: {
+    type: "website",
+    url: "/",
+    siteName: "Vio",
+    title: "Vio — AI learning with teachers in control",
+    description: "Turn learning material into grounded answers, study workflows, and teacher-reviewed classroom feedback.",
+    images: [{ url: "/opengraph-image", width: 1200, height: 630, alt: "Vio AI education workspace landing page" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Vio — AI learning with teachers in control",
+    description: "Grounded learning tools and human-reviewed classroom feedback in one workspace.",
+    images: ["/opengraph-image"],
+  },
 };
 
 export default function RootLayout({

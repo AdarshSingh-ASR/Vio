@@ -4,6 +4,8 @@
 
 [Live application](https://vio-pcuh.onrender.com) · [Architecture](ARCHITECTURE.md) · [Demo scenarios](docs/DEMO_SCENARIOS.md) · [Testing guide](docs/TESTING.md)
 
+[![Preview of the Vio landing page](https://vio-pcuh.onrender.com/opengraph-image)](https://vio-pcuh.onrender.com)
+
 Vio was built for the **Education** track of [OpenAI Build Week](https://openai.devpost.com/). It combines an AI study workspace with a classroom workflow: teachers create assignments, students submit text or files, AI prepares an evidence-backed evaluation, and the teacher reviews, overrides, and explicitly publishes the final result.
 
 The goal is not autonomous grading. It is faster, more consistent feedback with a clear human-in-the-loop boundary.
