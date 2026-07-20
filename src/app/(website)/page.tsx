@@ -138,16 +138,16 @@ export default function Home() {
         </form>
 
         {/* Features */}
-        <div className="grid w-full max-w-4xl grid-cols-1 gap-4 text-left sm:grid-cols-2">
+        <div className="grid w-full max-w-4xl grid-cols-1 gap-3 text-left sm:grid-cols-2 lg:grid-cols-3">
           {features.map((feature) => (
             <div
               key={feature} 
-              className="flex min-h-[60px] items-center gap-3 rounded-2xl border-2 border-border bg-transparent px-5 py-3.5 text-foreground transition-colors hover:border-primary/45 hover:bg-card/45"
+              className="flex min-h-12 items-center gap-2.5 rounded-xl border border-border bg-transparent px-3.5 py-2.5 text-foreground transition-colors hover:border-primary/45 hover:bg-card/45"
             >
-              <span className="inline-flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full border-2 border-primary/70 text-primary">
-                <Check className="h-3.5 w-3.5" strokeWidth={2.75} aria-hidden="true" />
+              <span className="inline-flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border border-primary/70 text-primary">
+                <Check className="h-3 w-3" strokeWidth={2.75} aria-hidden="true" />
               </span>
-              <span className="text-[15px] font-medium leading-5">{feature}</span>
+              <span className="text-sm font-medium leading-5">{feature}</span>
             </div>
           ))}
         </div>
