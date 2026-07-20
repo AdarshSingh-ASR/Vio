@@ -58,7 +58,7 @@ export default function OpenGraphImage() {
         <div style={{ display: "flex", flex: 1, fontSize: 18, color: "#8990a1" }}>Paste URL or upload a file</div>
         <div style={{ display: "flex", marginRight: 18, fontSize: 25, color: "#767d8d" }}>↑</div>
         <div style={{ display: "flex", alignItems: "center", height: 50, padding: "0 25px", borderRadius: "13px", backgroundColor: "#5b61ff", color: "white", fontSize: 17, fontWeight: 700 }}>
-          Add to Vio
+          Get Started
         </div>
       </div>
 
