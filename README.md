@@ -1,52 +1,312 @@
 # Vio
 
-Vio is an AI-assisted education workspace for learning material, grounded chat, study workflows, quizzes, and human-reviewed classroom homework.
+> An evidence-grounded AI education workspace where teachers stay in control of assessment.
 
-## What is implemented
+[Live application](https://vio-pcuh.onrender.com) · [Architecture](ARCHITECTURE.md) · [Demo scenarios](docs/DEMO_SCENARIOS.md) · [Testing guide](docs/TESTING.md)
 
-- Next.js 16 and React 19 browser application and authenticated BFF.
-- Appwrite authentication and permission-scoped binary storage.
-- TiDB relational storage with numbered, checksum-verified migrations.
-- Agno/FastAPI agent service on Cloud Run.
-- Vertex AI Gemini 2.5 Flash as the built-in primary provider, with retryable OpenAI and Groq fallbacks.
-- User-funded OpenAI Platform keys with KMS envelope encryption.
-- Streaming SSE chat with Streamdown, typed tool events, citations, approvals, stop/retry, and durable sessions.
-- ACL-filtered hybrid lexical/vector retrieval with Vertex embeddings, file extraction, grounded citations, conversation summaries, and curated memory storage.
-- Classroom creation, invitations, assignments, attachments, immutable submission versions, AI evaluation, teacher override, and explicit result publication.
+Vio was built for the **Education** track of [OpenAI Build Week](https://openai.devpost.com/). It combines an AI study workspace with a classroom workflow: teachers create assignments, students submit text or files, AI prepares an evidence-backed evaluation, and the teacher reviews, overrides, and explicitly publishes the final result.
 
-Learning Script Studio and its FFmpeg/Manim rendering stack have been removed. Legacy generation records are archived and verified by migration before their source table is dropped.
+The goal is not autonomous grading. It is faster, more consistent feedback with a clear human-in-the-loop boundary.
 
-## Quick start
+## Why Vio
 
-1. Copy `env.example` to `.env.local` and fill the Appwrite, TiDB, provider, and internal-service values.
-2. Install dependencies with `npm ci`.
-3. Initialize or upgrade the database with `npm run setup:tidb`.
-4. Start the agent service from `services/agent`.
-5. Run `npm run dev`.
+Teachers often lose time moving between learning material, assignment tools, grading, and generic AI chat. Students receive feedback late and frequently cannot see the evidence behind it. Vio brings these workflows together while preserving three important guarantees:
 
-Before shipping, run:
+- AI evaluations are drafts; the teacher is the final authority.
+- Uploaded knowledge and classroom data are permission-scoped.
+- Sensitive actions such as publishing grades require explicit confirmation and are audited.
+
+## What works
+
+### Classroom management
+
+- Create and archive classrooms.
+- Invite students with expiring, revocable links or codes.
+- Create draft or published assignments with lesson/chapter metadata, due dates, instructions, maximum marks, rubric data, and attachments.
+- Accept immutable, versioned text and file submissions with late/resubmission policies.
+- Generate a structured AI evaluation with score, feedback, strengths, weaknesses, improvements, confidence, and evidence.
+- Let teachers recheck, override, save a review draft, and explicitly publish authoritative results.
+- Keep AI feedback hidden from students until the teacher publishes the review.
+
+### AI workspace
+
+- Streaming chat with Streamdown rendering, code blocks, tables, tool events, citations, retry, and durable conversation history.
+- Typed tools with authorization checks, structured results, failure recovery, and approval pauses for sensitive writes.
+- Persistent session summaries and curated user memories that can be inspected or deleted.
+- PDF, DOCX, PPTX, spreadsheet, image/OCR, text, audio, and video ingestion paths with extraction status and grounded retrieval.
+- Learning-path generation, research assistance, adaptive study sessions, standard quizzes, and listening tests.
+- Vertex AI Gemini 2.5 Flash as the built-in primary provider, with OpenAI and Groq fallback only for retryable provider failures.
+- Optional user-funded OpenAI Platform API keys, encrypted before storage.
+
+## Three-minute demo story
+
+1. A teacher creates a classroom and evidence-grounded homework.
+2. A student joins and submits multimodal work.
+3. Vio evaluates the exact immutable submission version.
+4. The teacher reviews the evidence, changes the draft score with a reason, and publishes.
+5. The student sees teacher-authoritative feedback with AI content clearly labeled.
+6. The Vio agent answers a follow-up using memory and tools, then demonstrates safe recovery from a failed tool.
+
+The complete repeatable script is in [docs/DEMO_SCENARIOS.md](docs/DEMO_SCENARIOS.md).
+
+## Architecture
+
+```mermaid
+flowchart LR
+  U["Next.js 16 + React 19 UI"] --> B["Authenticated Next.js BFF"]
+  B --> D["TiDB application data"]
+  B --> S["Appwrite auth + private files"]
+  B --> A["Agno + FastAPI agent"]
+  A --> V["Vertex Gemini 2.5 Flash"]
+  A --> O["OpenAI fallback / BYOK"]
+  A --> G["Groq fallback"]
+  A --> T["Typed permission-checked tools"]
+  T --> B
+```
+
+The production Render image runs the Next.js application and private FastAPI agent together, applies checksum-verified TiDB migrations at startup, and performs homework evaluation inline. This keeps the public deployment in one service without Cloud KMS or Cloud Tasks. User API keys are protected with a server-only 32-byte application encryption key.
+
+The agent never receives unrestricted SQL access. It calls constrained internal BFF tools using short-lived signed context, and every tool call rechecks ownership or classroom role. See [ARCHITECTURE.md](ARCHITECTURE.md) for provider, memory, retrieval, and grading flows.
+
+## Technology
+
+| Area | Stack | Purpose |
+| --- | --- | --- |
+| Web | Next.js 16, React 19, TypeScript | UI, API gateway, authorization |
+| Design | Tailwind CSS, shadcn/ui, Radix UI | Accessible, consistent interface |
+| Chat | Streamdown, SSE | Streaming Markdown and typed run events |
+| Agent | Python, FastAPI, Agno, Pydantic | Agent orchestration, tools, schemas, memory |
+| AI | Vertex Gemini 2.5 Flash, OpenAI, Groq | Multimodal generation and provider fallback |
+| Data | TiDB/MySQL, numbered SQL migrations | Classrooms, conversations, memory, audit data |
+| Identity/files | Appwrite | Authentication and private object storage |
+| Deployment | Docker, Render Blueprint | One-service production deployment |
+| Quality | Vitest, Playwright, pytest, ESLint | Unit, contract, live, accessibility, and agent tests |
+
+## Run locally
+
+### Prerequisites
+
+- Node.js 20.9 or newer
+- npm 10
+- Python 3.11 or newer
+- A TiDB Cloud or MySQL-compatible database
+- An Appwrite project
+- A Google Cloud project with Vertex AI enabled
+
+### 1. Clone and install
+
+```bash
+git clone https://github.com/AdarshSingh-ASR/Vio.git
+cd Vio
+npm ci
+```
+
+### 2. Configure Appwrite
+
+1. Create an Appwrite project and add a **Next.js web platform**.
+2. Use `localhost` for local development and add the deployed hostname for production.
+3. Enable the authentication provider you want to use. For Google OAuth, configure Appwrite's displayed callback URL in Google Cloud.
+4. Create **one private storage bucket**. A single bucket is sufficient; use its ID for the files, images, and videos variables.
+5. Enable file-level security and allow authenticated users to create files.
+6. Create a server API key with the minimum authentication/user and storage permissions required by the application.
+
+Appwrite Database is not used for active application data. `APPWRITE_DATABASE_ID` is needed only when migrating notes from a legacy Vio installation.
+
+### 3. Configure environment variables
+
+Copy the template:
+
+```bash
+# macOS/Linux
+cp env.example .env
+
+# Windows PowerShell
+Copy-Item env.example .env
+```
+
+Required values:
+
+| Variable | How it is used |
+| --- | --- |
+| `APPWRITE_ENDPOINT`, `APPWRITE_PROJECT_ID`, `APPWRITE_API_KEY` | Server-side Appwrite access |
+| `NEXT_PUBLIC_APPWRITE_ENDPOINT`, `NEXT_PUBLIC_APPWRITE_PROJECT_ID` | Browser authentication |
+| `APPWRITE_FILES_BUCKET_ID`, `NEXT_PUBLIC_APPWRITE_FILES_BUCKET_ID` | Private file bucket; reuse this ID for image/video variables on the free plan |
+| `NEXT_PUBLIC_APP_URL` | `http://localhost:3000` locally |
+| `TIDB_HOST`, `TIDB_PORT`, `TIDB_USER`, `TIDB_PASSWORD`, `TIDB_DATABASE`, `TIDB_SSL` | TiDB connection |
+| `AGENT_SHARED_SECRET` | At least 32 random bytes shared by the web and agent processes |
+| `AGNO_DATABASE_URL` | SQLAlchemy/PyMySQL URL for durable agent sessions |
+| `AI_CREDENTIAL_ENCRYPTION_KEY` | Base64-encoded 32-byte key for user-supplied provider credentials |
+| `GOOGLE_CLOUD_PROJECT`, `GOOGLE_CLOUD_LOCATION` | Vertex AI project and region |
+| `GOOGLE_VERTEX_CREDENTIALS` or Application Default Credentials | Raw JSON or base64-encoded Vertex service-account credentials; the Render startup script writes these to an ephemeral file |
+
+Generate local secrets:
+
+```bash
+openssl rand -base64 32   # AI_CREDENTIAL_ENCRYPTION_KEY
+openssl rand -hex 32      # AGENT_SHARED_SECRET
+```
+
+Provider/integration variables such as `OPENAI_API_KEY`, `GROQ_API_KEY`, `OPENROUTER_API_KEY`, `TAVILY_API_KEY`, and TTS keys are optional. At least Vertex must be configured for built-in AI. Never commit `.env` or service-account JSON.
+
+### 4. Initialize the database
+
+```bash
+npm run setup:tidb
+```
+
+The migration runner creates a baseline database, applies every numbered migration, records checksums in `schema_migrations`, and refuses modifications to migrations that have already run.
+
+### 5. Start the agent
+
+```bash
+cd services/agent
+python -m venv .venv
+
+# macOS/Linux
+source .venv/bin/activate
+
+# Windows PowerShell
+.venv\Scripts\Activate.ps1
+
+pip install -r requirements.txt
+uvicorn app.main:app --host 127.0.0.1 --port 8081 --reload
+```
+
+Set `AGENT_SERVICE_URL=http://127.0.0.1:8081` and `VIO_INTERNAL_API_URL=http://127.0.0.1:3000` locally.
+
+### 6. Start the web application
+
+In another terminal:
+
+```bash
+npm run dev
+```
+
+Open [http://localhost:3000](http://localhost:3000), sign in, upload a small document, create a classroom, and open the Vio assistant.
+
+## Sample and demo data
+
+No seed data is required. Vio intentionally demonstrates real authorization, storage, AI responses, and teacher/student boundaries rather than mocked grading records.
+
+For a reproducible evaluation:
+
+1. Create two real accounts: one teacher and one student.
+2. As the teacher, create a classroom and assignment with a maximum score of 100.
+3. Join with the student account using the generated code.
+4. Submit a short answer and a PDF or image.
+5. Return as the teacher, review the AI draft, override one field with a reason, and publish.
+
+This creates all sample data through supported product flows. The expected states and prompts are documented in [docs/DEMO_SCENARIOS.md](docs/DEMO_SCENARIOS.md).
+
+## Deploy the complete application on Render
+
+The included [render.yaml](render.yaml) and [Dockerfile.render](Dockerfile.render) deploy the web app and agent in one Render service.
+
+1. Fork or connect this repository in Render.
+2. Choose **New → Blueprint** and select the repository.
+3. Add the secret values marked `sync: false` in `render.yaml`.
+4. Ensure the `NEXT_PUBLIC_*` values are available during the Docker build.
+5. Deploy. The container runs migrations before starting both services.
+6. Add the final Render hostname to Appwrite's web platform and OAuth configuration.
+7. Verify `https://YOUR_HOST/api/health` returns `{"status":"ok","service":"vio-web"}`.
+
+The free Render tier can sleep after inactivity, so the first request may take approximately a minute. Production or judging demos should warm the service before recording.
+
+## Verification
+
+Run the local quality gates:
 
 ```bash
 npm run type-check
 npm test
 npm run lint
 npm run build
+python -m compileall services/agent/app
 ```
 
-See [SETUP_GUIDE.md](SETUP_GUIDE.md), [ARCHITECTURE.md](ARCHITECTURE.md), [deployment](docs/DEPLOYMENT.md), [production verification](docs/TESTING.md), and the [release status](docs/RELEASE_STATUS.md) for complete configuration and operations.
+The unit suite does not require live AI credentials. Infrastructure, teacher/student, stream-reconnection, accessibility, and load checks are described in [docs/TESTING.md](docs/TESTING.md).
 
-## Deployment
+## How we built Vio with Codex and GPT-5.6
 
-The recommended release uses one Cloud Build submission to deploy the web service, private agent, migration job, and queues in one Google Cloud control plane. The Next.js service remains Vercel-compatible as an optional split topology. See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
+Codex with GPT-5.6 was a hands-on engineering collaborator throughout the upgrade, not a one-shot code generator. The collaboration followed a repeated loop: inspect the repository, propose a phased plan, implement a bounded change, run tests, deploy, inspect real production behavior, and repair issues using concrete logs.
 
-## Security boundaries
+### Where Codex accelerated the work
 
-- The browser never receives decrypted AI credentials.
-- User-funded AI usage accepts validated OpenAI Platform API keys.
-- Agent tools receive short-lived signed context and recheck authorization in the Next.js BFF.
-- Grade publication and other sensitive tools require explicit approval.
-- Draft AI grading is hidden from students until a teacher publishes an authoritative review.
+- **Repository-wide architecture review:** Codex traced routes, persistence boundaries, providers, uploads, native rendering dependencies, and authorization paths before code was changed.
+- **Large safe refactor:** it removed Learning Script Studio and its FFmpeg/Manim infrastructure while checking that shared quiz and TTS dependencies remained in use.
+- **AI consolidation:** it helped replace scattered direct model calls with a provider contract, retry classification, structured generation, streaming, typed tools, and durable memory.
+- **Classroom implementation:** it generated and connected migrations, authorization rules, versioned submissions, evaluation records, teacher drafts, overrides, publication, and audit events.
+- **Production debugging:** Codex read Render and CI failures, reproduced the relevant code paths, and fixed Linux asset casing, Python import paths, optional Rollup dependencies, build-time Tavily initialization, Appwrite bucket permissions, TiDB JSON/prepared-statement behavior, and unsupported query patterns.
+- **Quality gates:** it added and repeatedly ran migration, security, memory-policy, credential, approval, file-security, and persistence tests before pushing changes.
+- **UI refinement:** Codex iterated from screenshots while we made the product decisions—preserve Vio's theme, remove decorative “AI slop,” simplify the assistant header, use the Vio identity for responses, and keep the teacher workflow explicit.
 
-## Demo
+### Decisions made together
 
-Use [docs/DEMO_SCENARIOS.md](docs/DEMO_SCENARIOS.md) for reproducible demonstrations using real accounts, uploads, provider responses, memory, tool approvals, and teacher-in-the-loop grading.
+| Decision | Why we chose it |
+| --- | --- |
+| Teacher-authoritative grading | AI accelerates review but never silently publishes a grade. |
+| Vertex primary, OpenAI/Groq fallback | Provider portability and resilience without crossing safety or billing boundaries. |
+| One private Appwrite bucket | Works within the free tier while retaining file-level permissions. |
+| TiDB as application source of truth | Keeps classroom, memory, conversation, and audit state transactional. |
+| Typed internal tools instead of raw SQL tools | Limits agent authority and makes every call validatable and auditable. |
+| Application encryption key on Render | Removes the Cloud KMS dependency for this single-service deployment while keeping user keys encrypted at rest. |
+| Inline evaluation | Removes Cloud Tasks from the hackathon deployment and keeps setup reproducible. |
+| One Render container | Lets judges run or deploy the complete web and agent system from one repository and one service. |
+
+GPT-5.6 was especially valuable for long-context repository reasoning: it kept frontend, Python agent, migrations, deployment files, and live production evidence in one working model. We retained human control over scope, product priorities, credentials, external accounts, and sensitive production actions. Codex proposed and implemented; we reviewed the tradeoffs, selected the deployment and UX direction, supplied credentials through secure platform settings, and approved releases.
+
+For the submission, the required `/feedback` Codex Session ID is provided in the Devpost form rather than committed to the repository.
+
+## How Vio addresses the judging criteria
+
+| Criterion | Evidence in Vio |
+| --- | --- |
+| Technological implementation | Non-trivial Codex-assisted implementation spanning a typed agent, provider fallback, durable memory, multimodal retrieval, authorization, migrations, and audited human approval. |
+| Design | A cohesive teacher-to-student workflow, streaming assistant, accessible component system, clear processing states, and teacher/AI responsibility labels. |
+| Potential impact | Reduces grading turnaround while preserving educator control and giving students evidence-linked, actionable feedback. |
+| Quality of the idea | Treats AI as a review collaborator rather than an autonomous grader, combining classroom operations, grounded evidence, memory, tools, and failure recovery in one product. |
+
+## Build Week submission checklist
+
+- [x] Working Education-track application
+- [x] Public source repository with reproducible setup and test commands
+- [x] Sample-data guidance without mocked grading records
+- [x] Clear Codex and GPT-5.6 collaboration narrative
+- [ ] Public YouTube demo shorter than three minutes
+- [ ] Add the `/feedback` Codex Session ID to the Devpost form
+- [ ] Confirm the repository license and final judging access
+
+## Security notes
+
+- Decrypted provider credentials never return to the browser.
+- Credentials, service-account material, prompts, and grading content are redacted from logs.
+- Every classroom and tool request revalidates the authenticated user and resource role.
+- Invitation codes are hashed, expirable, revocable, rate-limited, and usage-limited.
+- Submission attempts are immutable and versioned.
+- AI grading stays hidden until an authorized teacher publishes a review.
+- Prompt-injected files do not grant tools additional permissions.
+
+## Repository map
+
+```text
+src/app/                 Next.js pages and API routes
+src/components/          Shared UI and assistant interface
+src/lib/                 Auth, TiDB, classroom, memory, retrieval, providers
+services/agent/app/      FastAPI/Agno agent, tools, security, evaluation
+migrations/              Ordered checksum-verified SQL migrations
+tests/                   Unit, security, migration, and live test suites
+docs/                    Architecture, deployment, testing, and demo guides
+render.yaml              One-service Render Blueprint
+Dockerfile.render        Combined web + agent production image
+```
+
+## Current limitations
+
+- The free Render instance may cold-start after inactivity.
+- A genuine teacher/student test requires two accounts; Vio does not bypass identity boundaries for demos.
+- Provider availability and cost depend on the credentials configured by the deployer.
+- OCR, transcription, and large-file processing are intentionally constrained by upload limits on the single-service hackathon deployment.
+
+## License and submission
+
+This repository is the source submission for OpenAI Build Week's Education track. Add the repository's chosen license before final Devpost submission if public judging requires reuse terms.
