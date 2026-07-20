@@ -35,20 +35,20 @@ COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/services/agent/app ./agent/app
 # The standalone Next.js trace does not include dependencies used only by the
 # startup migrator, so copy its small runtime dependency set explicitly.
-COPY --from=deps /app/node_modules/dotenv ./node_modules/dotenv
-COPY --from=deps /app/node_modules/mysql2 ./node_modules/mysql2
-COPY --from=deps /app/node_modules/aws-ssl-profiles ./node_modules/aws-ssl-profiles
-COPY --from=deps /app/node_modules/denque ./node_modules/denque
-COPY --from=deps /app/node_modules/generate-function ./node_modules/generate-function
-COPY --from=deps /app/node_modules/iconv-lite ./node_modules/iconv-lite
-COPY --from=deps /app/node_modules/is-property ./node_modules/is-property
-COPY --from=deps /app/node_modules/long ./node_modules/long
-COPY --from=deps /app/node_modules/lru-cache ./node_modules/lru-cache
-COPY --from=deps /app/node_modules/lru.min ./node_modules/lru.min
-COPY --from=deps /app/node_modules/named-placeholders ./node_modules/named-placeholders
-COPY --from=deps /app/node_modules/safer-buffer ./node_modules/safer-buffer
-COPY --from=deps /app/node_modules/seq-queue ./node_modules/seq-queue
-COPY --from=deps /app/node_modules/sqlstring ./node_modules/sqlstring
+COPY --from=dependencies /app/node_modules/dotenv ./node_modules/dotenv
+COPY --from=dependencies /app/node_modules/mysql2 ./node_modules/mysql2
+COPY --from=dependencies /app/node_modules/aws-ssl-profiles ./node_modules/aws-ssl-profiles
+COPY --from=dependencies /app/node_modules/denque ./node_modules/denque
+COPY --from=dependencies /app/node_modules/generate-function ./node_modules/generate-function
+COPY --from=dependencies /app/node_modules/iconv-lite ./node_modules/iconv-lite
+COPY --from=dependencies /app/node_modules/is-property ./node_modules/is-property
+COPY --from=dependencies /app/node_modules/long ./node_modules/long
+COPY --from=dependencies /app/node_modules/lru-cache ./node_modules/lru-cache
+COPY --from=dependencies /app/node_modules/lru.min ./node_modules/lru.min
+COPY --from=dependencies /app/node_modules/named-placeholders ./node_modules/named-placeholders
+COPY --from=dependencies /app/node_modules/safer-buffer ./node_modules/safer-buffer
+COPY --from=dependencies /app/node_modules/seq-queue ./node_modules/seq-queue
+COPY --from=dependencies /app/node_modules/sqlstring ./node_modules/sqlstring
 COPY scripts/start-render.sh ./scripts/start-render.sh
 COPY scripts/migrate.js ./scripts/migrate.js
 COPY migrations ./migrations
