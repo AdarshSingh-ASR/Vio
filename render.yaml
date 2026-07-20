@@ -1,0 +1,75 @@
+services:
+  - type: web
+    name: vio
+    runtime: docker
+    plan: free
+    region: singapore
+    dockerfilePath: ./Dockerfile.render
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: AGENT_SERVICE_URL
+        value: http://127.0.0.1:8081
+      - key: EVALUATION_EXECUTION_MODE
+        value: inline
+      - key: APPWRITE_ENDPOINT
+        sync: false
+      - key: APPWRITE_PROJECT_ID
+        sync: false
+      - key: APPWRITE_API_KEY
+        sync: false
+      - key: APPWRITE_FILES_BUCKET_ID
+        sync: false
+      - key: APPWRITE_IMAGES_BUCKET_ID
+        sync: false
+      - key: APPWRITE_VIDEOS_BUCKET_ID
+        sync: false
+      - key: NEXT_PUBLIC_APPWRITE_ENDPOINT
+        sync: false
+      - key: NEXT_PUBLIC_APPWRITE_PROJECT_ID
+        sync: false
+      - key: NEXT_PUBLIC_APPWRITE_FILES_BUCKET_ID
+        sync: false
+      - key: NEXT_PUBLIC_APPWRITE_IMAGES_BUCKET_ID
+        sync: false
+      - key: NEXT_PUBLIC_APPWRITE_VIDEOS_BUCKET_ID
+        sync: false
+      - key: NEXT_PUBLIC_APP_URL
+        sync: false
+      - key: TIDB_HOST
+        sync: false
+      - key: TIDB_PORT
+        sync: false
+      - key: TIDB_USER
+        sync: false
+      - key: TIDB_PASSWORD
+        sync: false
+      - key: TIDB_DATABASE
+        sync: false
+      - key: TIDB_SSL
+        value: true
+      - key: AGENT_SHARED_SECRET
+        sync: false
+      - key: AI_CREDENTIAL_ENCRYPTION_KEY
+        sync: false
+      - key: GOOGLE_VERTEX_CREDENTIALS
+        sync: false
+      - key: GOOGLE_CLOUD_PROJECT
+        sync: false
+      - key: GOOGLE_CLOUD_LOCATION
+        value: us-central1
+      - key: GOOGLE_GENAI_USE_VERTEXAI
+        value: true
+      - key: VERTEX_MODEL
+        value: gemini-2.5-flash
+      - key: VERTEX_EMBEDDING_MODEL
+        value: gemini-embedding-001
+      - key: AGNO_DATABASE_URL
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: TAVILY_API_KEY
+        sync: false

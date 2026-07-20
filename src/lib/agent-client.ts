@@ -1,5 +1,4 @@
 import crypto from "crypto";
-import { CloudTasksClient, protos } from "@google-cloud/tasks";
 import { GoogleAuth } from "google-auth-library";
 
 export type AgentTokenScope = { runId?: string; conversationId?: string; traceId?: string };
@@ -57,78 +56,22 @@ export function verifyAgentContextToken(token: string | null) {
 }
 
 export async function enqueueHomeworkEvaluation(input: { userId: string; classroomId: string; submissionId: string; versionId: string }) {
-  const endpoint = process.env.AGENT_SERVICE_URL ? `${process.env.AGENT_SERVICE_URL}/v1/evaluations/homework` : null;
-  if (!endpoint) return { queued: false, reason: "agent_service_not_configured" };
+  if (!process.env.AGENT_SERVICE_URL) return { queued: false, reason: "agent_service_not_configured" };
   const traceId = crypto.randomUUID();
   const token = createAgentContextToken(input.userId, ["homework:evaluate"], { traceId });
-  const queueProject = process.env.CLOUD_TASKS_PROJECT;
-  const queueLocation = process.env.CLOUD_TASKS_LOCATION;
-  const queueName = process.env.CLOUD_TASKS_QUEUE;
-  if (queueProject && queueLocation && queueName) {
-    const client = new CloudTasksClient();
-    const parent = client.queuePath(queueProject, queueLocation, queueName);
-    const taskId = `homework-${input.versionId}`.replace(/[^a-zA-Z0-9_-]/g, "-");
-    const request: protos.google.cloud.tasks.v2.ICreateTaskRequest = {
-      parent,
-      task: {
-        name: `${parent}/tasks/${taskId}`,
-        dispatchDeadline: { seconds: 900 },
-        httpRequest: {
-          url: endpoint,
-          httpMethod: "POST",
-          headers: { "Content-Type": "application/json", "X-Vio-Agent-Token": token, "X-Vio-Trace-Id": traceId },
-          body: Buffer.from(JSON.stringify({ ...input, async_mode: false })).toString("base64"),
-          ...(process.env.CLOUD_TASKS_SERVICE_ACCOUNT_EMAIL ? { oidcToken: { serviceAccountEmail: process.env.CLOUD_TASKS_SERVICE_ACCOUNT_EMAIL, audience: process.env.AGENT_SERVICE_URL } } : {}),
-        },
-      },
-    };
-    try { await client.createTask(request); } catch (error: any) { if (error?.code !== 6) throw error; }
-    return { queued: true };
-  }
   const response = await agentServiceFetch("/v1/evaluations/homework", {
     method: "POST",
     headers: { "Content-Type": "application/json", "X-Vio-Agent-Token": token, "X-Vio-Trace-Id": traceId },
-    body: JSON.stringify({ ...input, async_mode: true }),
-    signal: AbortSignal.timeout(10_000),
+    body: JSON.stringify({ ...input, async_mode: false }),
+    signal: AbortSignal.timeout(240_000),
   });
-  if (!response.ok) throw new Error(`Evaluation queue rejected the request (${response.status})`);
-  return { queued: true };
+  if (!response.ok) throw new Error(`Inline evaluation failed (${response.status})`);
+  return { queued: true, mode: "inline" as const };
 }
 
 export async function enqueueFileIngestion(input: { userId: string; documentId: string }) {
-  const callbackBase = process.env.VIO_JOB_CALLBACK_URL || process.env.NEXT_PUBLIC_APP_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null);
-  const queueProject = process.env.CLOUD_TASKS_PROJECT;
-  const queueLocation = process.env.CLOUD_TASKS_LOCATION;
-  const queueName = process.env.CLOUD_TASKS_INGESTION_QUEUE || process.env.CLOUD_TASKS_QUEUE;
-  if (!callbackBase || !queueProject || !queueLocation || !queueName) {
-    return { queued: false, reason: "cloud_tasks_not_configured" as const };
-  }
-  const traceId = crypto.randomUUID();
-  const token = createAgentContextToken(input.userId, ["files:ingest"], { traceId });
-  const client = new CloudTasksClient();
-  const parent = client.queuePath(queueProject, queueLocation, queueName);
-  const taskId = `ingest-${input.documentId}`.replace(/[^a-zA-Z0-9_-]/g, "-");
-  const endpoint = `${callbackBase.replace(/\/$/, "")}/api/internal/jobs/file-ingestion`;
-  const request: protos.google.cloud.tasks.v2.ICreateTaskRequest = {
-    parent,
-    task: {
-      name: `${parent}/tasks/${taskId}`,
-      dispatchDeadline: { seconds: 900 },
-      httpRequest: {
-        url: endpoint,
-        httpMethod: "POST",
-        headers: { "Content-Type": "application/json", "X-Vio-Agent-Token": token, "X-Vio-Trace-Id": traceId },
-        body: Buffer.from(JSON.stringify({ documentId: input.documentId })),
-        ...(process.env.CLOUD_TASKS_SERVICE_ACCOUNT_EMAIL ? {
-          oidcToken: { serviceAccountEmail: process.env.CLOUD_TASKS_SERVICE_ACCOUNT_EMAIL, audience: callbackBase },
-        } : {}),
-      },
-    },
-  };
-  try {
-    await client.createTask(request);
-  } catch (error: any) {
-    if (error?.code !== 6) throw error; // ALREADY_EXISTS makes the operation idempotent.
-  }
-  return { queued: true };
+  // File extraction and embedding run in the request that accepted the upload.
+  // Keeping this return shape preserves the existing upload workflow.
+  void input;
+  return { queued: false, reason: "inline_execution" as const };
 }

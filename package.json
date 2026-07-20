@@ -26,8 +26,6 @@
         "type-check": "tsc -p tsconfig.typecheck.json --noEmit"
     },
     "dependencies": {
-        "@google-cloud/kms": "^5.6.0",
-        "@google-cloud/tasks": "^6.2.3",
         "@headlessui/react": "^2.2.2",
         "@hookform/error-message": "^2.0.1",
         "@hookform/resolvers": "^3.9.1",

@@ -65,9 +65,8 @@ export function createFileTranscriber(userId: string) {
 }
 
 export function requireProductionIngestionQueue() {
-  if (process.env.NODE_ENV === "production" && (!process.env.CLOUD_TASKS_PROJECT || !process.env.CLOUD_TASKS_LOCATION || !(process.env.CLOUD_TASKS_INGESTION_QUEUE || process.env.CLOUD_TASKS_QUEUE))) {
-    throw new ApiError(503, "The production file-ingestion queue is not configured", "INGESTION_QUEUE_REQUIRED");
-  }
+  // Render's single-service deployment processes uploads inline. Keep this
+  // guard as a compatibility no-op for callers shared with queued deployments.
 }
 
 export async function uploadClassroomFiles(request: Request, files: File[], target: { type: "assignment" | "submission"; id: string; userId: string }) {

@@ -3,8 +3,6 @@ import crypto from "node:crypto";
 import test from "node:test";
 import mysql from "mysql2/promise";
 import { Client, Storage } from "node-appwrite";
-import { KeyManagementServiceClient } from "@google-cloud/kms";
-import { CloudTasksClient } from "@google-cloud/tasks";
 import { GoogleAuth } from "google-auth-library";
 
 const required = (name) => {
@@ -40,24 +38,12 @@ test("Appwrite storage buckets enforce file security", async () => {
   }
 });
 
-test("Cloud KMS performs an authenticated encrypt/decrypt round trip", async () => {
-  const client = new KeyManagementServiceClient();
-  const name = required("KMS_KEY_NAME");
-  const plaintext = Buffer.from(`vio-live-check-${Date.now()}`);
-  const [encrypted] = await client.encrypt({ name, plaintext });
-  assert.ok(encrypted.ciphertext);
-  const [decrypted] = await client.decrypt({ name, ciphertext: encrypted.ciphertext });
-  assert.deepEqual(Buffer.from(decrypted.plaintext), plaintext);
+test("application credential-encryption key has the required strength", () => {
+  const key = Buffer.from(required("AI_CREDENTIAL_ENCRYPTION_KEY"), "base64");
+  assert.equal(key.length, 32, "AI_CREDENTIAL_ENCRYPTION_KEY must decode to 32 bytes");
 });
 
-test("Cloud Tasks queues and private agent readiness are reachable", async () => {
-  const tasks = new CloudTasksClient();
-  const project = required("CLOUD_TASKS_PROJECT");
-  const location = required("CLOUD_TASKS_LOCATION");
-  for (const queue of new Set([required("CLOUD_TASKS_QUEUE"), required("CLOUD_TASKS_INGESTION_QUEUE")])) {
-    const [record] = await tasks.getQueue({ name: tasks.queuePath(project, location, queue) });
-    assert.ok(record.name);
-  }
+test("inline agent evaluation service is reachable", async () => {
   const baseUrl = required("AGENT_SERVICE_URL").replace(/\/$/, "");
   const headers = {};
   if (process.env.AGENT_SERVICE_REQUIRE_OIDC === "true") {
