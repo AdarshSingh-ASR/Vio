@@ -100,15 +100,21 @@ export async function GET(req: NextRequest) {
 
       console.log('Using workspace:', defaultWorkspace.id);
 
-      // Search dashboard items
-      const items = await dashboardItemService.search(query, defaultWorkspace.id, user.id);
-      
-      // Search folders
-      const folders = await folderService.search(query, defaultWorkspace.id, user.id);
-      
-      // Search quiz results
-      const quizResults = await quizResultService.search(query, user.id);
-      const knowledgeResults = await knowledgeStore.searchOwned({ userId: user.id, query, limit: 10 });
+      // Saved-content search must remain useful when an optional index or legacy
+      // feature is temporarily unavailable. Items and folders are the core results;
+      // quiz history and knowledge retrieval degrade independently.
+      const [items, folders] = await Promise.all([
+        dashboardItemService.search(query, defaultWorkspace.id, user.id),
+        folderService.search(query, defaultWorkspace.id, user.id),
+      ]);
+      const [quizOutcome, knowledgeOutcome] = await Promise.allSettled([
+        quizResultService.search(query, user.id),
+        knowledgeStore.searchOwned({ userId: user.id, query, limit: 10 }),
+      ]);
+      const quizResults = quizOutcome.status === "fulfilled" ? quizOutcome.value : [];
+      const knowledgeResults = knowledgeOutcome.status === "fulfilled" ? knowledgeOutcome.value : [];
+      if (quizOutcome.status === "rejected") console.warn("Quiz search unavailable", { error: quizOutcome.reason instanceof Error ? quizOutcome.reason.message : "UNKNOWN" });
+      if (knowledgeOutcome.status === "rejected") console.warn("Knowledge search unavailable", { error: knowledgeOutcome.reason instanceof Error ? knowledgeOutcome.reason.message : "UNKNOWN" });
 
       console.log(`TiDB search completed: ${items.length} items, ${folders.length} folders, ${quizResults.length} quiz results`);
 
@@ -120,17 +126,9 @@ export async function GET(req: NextRequest) {
         webResults: []
       });
 
-    } catch (authError: any) {
-      console.error('TiDB search authentication error:', authError);
-      
-      // If authentication fails, return empty results for database search
-      return NextResponse.json({
-        items: [],
-        folders: [],
-        quizResults: [],
-        webResults: [],
-        error: 'Authentication required for searching saved content'
-      });
+    } catch (searchError: any) {
+      console.error('TiDB saved-content search error:', searchError);
+      throw searchError;
     }
 
   } catch (error: any) {

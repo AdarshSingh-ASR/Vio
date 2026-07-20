@@ -228,7 +228,15 @@ export const classroomService = {
        FROM classroom_members cm JOIN users u ON u.id = cm.user_id
        LEFT JOIN homework_submissions s ON s.student_user_id = u.id AND s.assignment_id = ?
        LEFT JOIN submission_versions sv ON sv.submission_id = s.id AND sv.version_number = s.current_version
-       LEFT JOIN ai_evaluations e ON e.id = (SELECT e2.id FROM ai_evaluations e2 WHERE e2.submission_version_id = sv.id ORDER BY e2.created_at DESC, e2.id DESC LIMIT 1)
+       LEFT JOIN (
+         SELECT ranked.* FROM (
+           SELECT evaluation.*, ROW_NUMBER() OVER (
+             PARTITION BY evaluation.submission_version_id
+             ORDER BY evaluation.created_at DESC, evaluation.id DESC
+           ) AS evaluation_rank
+           FROM ai_evaluations evaluation
+         ) ranked WHERE ranked.evaluation_rank = 1
+       ) e ON e.submission_version_id = sv.id
        LEFT JOIN teacher_reviews r ON r.submission_id = s.id AND r.submission_version_id = sv.id
        WHERE cm.classroom_id = ? AND cm.role = 'student' AND cm.status = 'active'
        ORDER BY u.first_name, u.last_name`,
@@ -290,7 +298,15 @@ export const classroomService = {
         r.marks, r.remarks, r.improvements AS teacher_improvements, r.status AS review_status, r.published_at
        FROM homework_submissions s
        JOIN submission_versions sv ON sv.submission_id = s.id AND sv.version_number = s.current_version
-       LEFT JOIN ai_evaluations e ON e.id = (SELECT e2.id FROM ai_evaluations e2 WHERE e2.submission_version_id = sv.id ORDER BY e2.created_at DESC, e2.id DESC LIMIT 1)
+       LEFT JOIN (
+         SELECT ranked.* FROM (
+           SELECT evaluation.*, ROW_NUMBER() OVER (
+             PARTITION BY evaluation.submission_version_id
+             ORDER BY evaluation.created_at DESC, evaluation.id DESC
+           ) AS evaluation_rank
+           FROM ai_evaluations evaluation
+         ) ranked WHERE ranked.evaluation_rank = 1
+       ) e ON e.submission_version_id = sv.id
        LEFT JOIN teacher_reviews r ON r.submission_id = s.id AND r.submission_version_id = sv.id
        WHERE s.assignment_id = ? AND s.student_user_id = ?`,
       [assignmentId, userId]
@@ -318,7 +334,15 @@ export const classroomService = {
               e.id AS evaluation_id, e.status AS evaluation_status, e.initial_score, e.feedback, e.strengths, e.weaknesses, e.improvements, e.citations, e.confidence,
               r.marks, r.remarks, r.improvements AS teacher_improvements, r.override_reason, r.status AS review_status, r.published_at
        FROM submission_versions sv
-       LEFT JOIN ai_evaluations e ON e.id=(SELECT e2.id FROM ai_evaluations e2 WHERE e2.submission_version_id=sv.id ORDER BY e2.created_at DESC, e2.id DESC LIMIT 1)
+       LEFT JOIN (
+         SELECT ranked.* FROM (
+           SELECT evaluation.*, ROW_NUMBER() OVER (
+             PARTITION BY evaluation.submission_version_id
+             ORDER BY evaluation.created_at DESC, evaluation.id DESC
+           ) AS evaluation_rank
+           FROM ai_evaluations evaluation
+         ) ranked WHERE ranked.evaluation_rank = 1
+       ) e ON e.submission_version_id = sv.id
        LEFT JOIN teacher_reviews r ON r.submission_version_id=sv.id
        WHERE sv.submission_id=? ORDER BY sv.version_number DESC`,
       [submissionId]
