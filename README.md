@@ -1,14 +1,32 @@
 # Vio
 
+### The AI grader that never grades without you.
+
 > An evidence-grounded AI education workspace where teachers stay in control of assessment.
 
-[Live application](https://vio-pcuh.onrender.com) · [Architecture](ARCHITECTURE.md) · [Demo scenarios](docs/DEMO_SCENARIOS.md) · [Testing guide](docs/TESTING.md)
+[![Live demo](https://img.shields.io/badge/Live%20demo-vio--pcuh.onrender.com-5865f2?style=for-the-badge)](https://vio-pcuh.onrender.com)
+[![Track](https://img.shields.io/badge/OpenAI%20Build%20Week-Education-111827?style=for-the-badge)](https://openai.devpost.com/)
+[![Built with](https://img.shields.io/badge/Built%20with-Codex%20%2B%20GPT--5.6-111827?style=for-the-badge)](#how-we-built-vio-with-codex-and-gpt-56)
+
+[Architecture](ARCHITECTURE.md) · [Demo scenarios](docs/DEMO_SCENARIOS.md) · [Testing guide](docs/TESTING.md)
 
 [![Preview of the Vio landing page](https://vio-pcuh.onrender.com/opengraph-image)](https://vio-pcuh.onrender.com)
 
 Vio was built for the **Education** track of [OpenAI Build Week](https://openai.devpost.com/). It combines an AI study workspace with a classroom workflow: teachers create assignments, students submit text or files, AI prepares an evidence-backed evaluation, and the teacher reviews, overrides, and explicitly publishes the final result.
 
 The goal is not autonomous grading. It is faster, more consistent feedback with a clear human-in-the-loop boundary.
+
+## The 30-second story
+
+Most AI grading products end with a score. Vio ends with a **teacher decision**.
+
+1. A teacher creates evidence-grounded homework.
+2. A student submits a text answer and/or files.
+3. Vio evaluates that exact immutable submission and cites its evidence.
+4. The teacher can edit the score, feedback, strengths, weaknesses, and suggestions.
+5. Nothing is shown as final until the teacher explicitly publishes it.
+
+This is Vio's product promise: **AI proposes; teachers dispose.**
 
 ## Why Vio
 
@@ -268,15 +286,30 @@ For the submission, the required `/feedback` Codex Session ID is provided in the
 | Potential impact | Reduces grading turnaround while preserving educator control and giving students evidence-linked, actionable feedback. |
 | Quality of the idea | Treats AI as a review collaborator rather than an autonomous grader, combining classroom operations, grounded evidence, memory, tools, and failure recovery in one product. |
 
+## Build Week: what changed
+
+Vio began as a learning workspace with several disconnected AI flows. During Build Week, the core product became a production-oriented classroom system:
+
+| Before | During Build Week |
+| --- | --- |
+| Direct model calls scattered across features | One provider contract with Vertex primary and OpenAI/Groq fallback |
+| Chat without durable context | Streaming agent runs, summaries, curated memory, and typed tools |
+| AI output treated as the result | Versioned submissions, evidence-backed drafts, teacher override, and explicit publication |
+| Runtime database setup | Checksum-verified numbered migrations and audit events |
+| Separate deployment assumptions | One Render service running the web app and private agent together |
+| Renderer-heavy Learning Script Studio | Removed native rendering infrastructure to keep the product deployable and maintainable |
+
+The public demo should show this progression rather than a collection of disconnected AI features.
+
 ## Build Week submission checklist
 
 - [x] Working Education-track application
 - [x] Public source repository with reproducible setup and test commands
 - [x] Sample-data guidance without mocked grading records
 - [x] Clear Codex and GPT-5.6 collaboration narrative
-- [ ] Public YouTube demo shorter than three minutes
-- [ ] Add the `/feedback` Codex Session ID to the Devpost form
-- [ ] Confirm the repository license and final judging access
+- [ ] Public YouTube demo shorter than three minutes (record before submitting)
+- [ ] Add the `/feedback` Codex Session ID to the Devpost form (the ID is intentionally not committed)
+- [ ] Confirm the repository license and final judging access before submitting
 
 ## Security notes
 
