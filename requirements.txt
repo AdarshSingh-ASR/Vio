@@ -35,4 +35,4 @@ flake8
 
 # Additional utilities
 python-multipart
-jinja2 
+jinja2

@@ -8,7 +8,7 @@
 [![Track](https://img.shields.io/badge/OpenAI%20Build%20Week-Education-111827?style=for-the-badge)](https://openai.devpost.com/)
 [![Built with](https://img.shields.io/badge/Built%20with-Codex%20%2B%20GPT--5.6-111827?style=for-the-badge)](#how-we-built-vio-with-codex-and-gpt-56)
 
-[Live app](https://vio-pcuh.onrender.com) · [Architecture](ARCHITECTURE.md) · [Demo scenarios](docs/DEMO_SCENARIOS.md) · [Testing guide](docs/TESTING.md)
+[Live app](https://vio-pcuh.onrender.com) · [Architecture](ARCHITECTURE.md)
 
 [![Preview of the Vio landing page](https://vio-pcuh.onrender.com/opengraph-image)](https://vio-pcuh.onrender.com)
 
@@ -24,7 +24,7 @@ The goal is not autonomous grading. It is faster, more consistent feedback with 
 | **Core workflow** | Create a teacher account and classroom, publish an assignment, submit work from a student account, then review and publish the AI draft as the teacher. |
 | **Signature moment** | Change an AI-proposed score or feedback field, record the reason, and publish. The student sees nothing as final before teacher approval. |
 | **What this proves** | Vio evaluates an immutable submission, cites evidence, preserves teacher authority, and audits the decision instead of silently auto-grading. |
-| **Repeatable script** | Follow [docs/DEMO_SCENARIOS.md](docs/DEMO_SCENARIOS.md) for exact prompts, expected states, and recovery behavior. |
+| **Repeatable path** | Create teacher and student accounts, submit one assignment, then review, override, and publish the AI draft. |
 
 ## The 30-second story
 
@@ -91,7 +91,7 @@ Teachers often lose time moving between learning material, assignment tools, gra
 5. The student sees teacher-authoritative feedback with AI content clearly labeled.
 6. The Vio agent answers a follow-up using memory and tools, then demonstrates safe recovery from a failed tool.
 
-The complete repeatable script is in [docs/DEMO_SCENARIOS.md](docs/DEMO_SCENARIOS.md).
+This flow can be reproduced with two accounts and one short assignment; no seed data or mocked grading records are required.
 
 ## Architecture
 
@@ -240,7 +240,7 @@ For a reproducible evaluation:
 4. Submit a short answer and a PDF or image.
 5. Return as the teacher, review the AI draft, override one field with a reason, and publish.
 
-This creates all sample data through supported product flows. The expected states and prompts are documented in [docs/DEMO_SCENARIOS.md](docs/DEMO_SCENARIOS.md).
+This creates all sample data through supported product flows and exercises the real authorization, submission, evaluation, and publication boundaries.
 
 ## Deploy the complete application on Render
 
@@ -268,7 +268,7 @@ npm run build
 python -m compileall services/agent/app
 ```
 
-The unit suite does not require live AI credentials. Infrastructure, teacher/student, stream-reconnection, accessibility, and load checks are described in [docs/TESTING.md](docs/TESTING.md).
+The unit suite does not require live AI credentials. The repository also includes infrastructure, teacher/student, stream-reconnection, accessibility, and load checks.
 
 ## How we built Vio with Codex and GPT-5.6
 
@@ -354,7 +354,6 @@ src/lib/                 Auth, TiDB, classroom, memory, retrieval, providers
 services/agent/app/      FastAPI/Agno agent, tools, security, evaluation
 migrations/              Ordered checksum-verified SQL migrations
 tests/                   Unit, security, migration, and live test suites
-docs/                    Architecture, deployment, testing, and demo guides
 render.yaml              One-service Render Blueprint
 Dockerfile.render        Combined web + agent production image
 ```
