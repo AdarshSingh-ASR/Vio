@@ -1,22 +1,26 @@
+<div align="center">
+
 # Vio
 
 ### The AI grader that never grades without you.
 
-> An evidence-grounded AI education workspace where teachers stay in control of assessment.
+**An evidence-grounded AI education workspace where teachers stay in control of assessment.**
 
-[![Live demo](https://img.shields.io/badge/Live%20demo-vio--pcuh.onrender.com-5865f2?style=for-the-badge)](https://vio-pcuh.onrender.com)
-[![Track](https://img.shields.io/badge/OpenAI%20Build%20Week-Education-111827?style=for-the-badge)](https://openai.devpost.com/)
-[![Built with](https://img.shields.io/badge/Built%20with-Codex%20%2B%20GPT--5.6-111827?style=for-the-badge)](#how-we-built-vio-with-codex-and-gpt-56)
+[![Live demo](https://img.shields.io/badge/Live%20demo-Open%20Vio-7c3aed?style=for-the-badge&logo=render&logoColor=white)](https://vio-pcuh.onrender.com)
+[![Track](https://img.shields.io/badge/OpenAI%20Build%20Week-Education-0f172a?style=for-the-badge&logo=openai&logoColor=white)](https://openai.devpost.com/)
+[![Built with](https://img.shields.io/badge/Built%20with-Codex%20%2B%20GPT--5.6-10a37f?style=for-the-badge&logo=openai&logoColor=white)](#how-we-built-vio-with-codex-and-gpt-56)
 
-[Live app](https://vio-pcuh.onrender.com) · [Architecture](ARCHITECTURE.md)
+[Live app](https://vio-pcuh.onrender.com) · [Architecture](ARCHITECTURE.md) · [Build story](#the-story-behind-vio)
 
 [![Preview of the Vio landing page](https://vio-pcuh.onrender.com/opengraph-image)](https://vio-pcuh.onrender.com)
+
+</div>
 
 Vio was built for the **Education** track of [OpenAI Build Week](https://openai.devpost.com/). It combines an AI study workspace with a classroom workflow: teachers create assignments, students submit text or files, AI prepares an evidence-backed evaluation, and the teacher reviews, overrides, and explicitly publishes the final result.
 
 The goal is not autonomous grading. It is faster, more consistent feedback with a clear human-in-the-loop boundary.
 
-## For judges: the 60-second path
+## ⚡ For judges: the 60-second path
 
 | | |
 | --- | --- |
@@ -62,7 +66,8 @@ Teachers often lose time moving between learning material, assignment tools, gra
 
 ## What works
 
-### Classroom management
+<details open>
+<summary><strong>Classroom management</strong></summary>
 
 - Create and archive classrooms.
 - Invite students with expiring, revocable links or codes.
@@ -72,7 +77,10 @@ Teachers often lose time moving between learning material, assignment tools, gra
 - Let teachers recheck, override, save a review draft, and explicitly publish authoritative results.
 - Keep AI feedback hidden from students until the teacher publishes the review.
 
-### AI workspace
+</details>
+
+<details open>
+<summary><strong>AI workspace</strong></summary>
 
 - Streaming chat with Streamdown rendering, code blocks, tables, tool events, citations, retry, and durable conversation history.
 - Typed tools with authorization checks, structured results, failure recovery, and approval pauses for sensitive writes.
@@ -81,6 +89,8 @@ Teachers often lose time moving between learning material, assignment tools, gra
 - Learning-path generation, research assistance, adaptive study sessions, standard quizzes, and listening tests.
 - Vertex AI Gemini 2.5 Flash as the built-in primary provider, with OpenAI and Groq fallback only for retryable provider failures.
 - Optional user-funded OpenAI Platform API keys, encrypted before storage.
+
+</details>
 
 ## Three-minute demo story
 
@@ -114,17 +124,15 @@ The agent never receives unrestricted SQL access. It calls constrained internal 
 
 ## Technology
 
-| Area | Stack | Purpose |
+| Layer | Technology | What it delivers |
 | --- | --- | --- |
-| Web | Next.js 16, React 19, TypeScript | UI, API gateway, authorization |
-| Design | Tailwind CSS, shadcn/ui, Radix UI | Accessible, consistent interface |
-| Chat | Streamdown, SSE | Streaming Markdown and typed run events |
-| Agent | Python, FastAPI, Agno, Pydantic | Agent orchestration, tools, schemas, memory |
-| AI | Vertex Gemini 2.5 Flash, OpenAI, Groq | Multimodal generation and provider fallback |
-| Data | TiDB/MySQL, numbered SQL migrations | Classrooms, conversations, memory, audit data |
-| Identity/files | Appwrite | Authentication and private object storage |
-| Deployment | Docker, Render Blueprint | One-service production deployment |
-| Quality | Vitest, Playwright, pytest, ESLint | Unit, contract, live, accessibility, and agent tests |
+| **Experience** | Next.js 16, React 19, TypeScript, Tailwind CSS, shadcn/ui | Accessible teacher, student, and assistant workflows |
+| **Streaming agent** | Python, FastAPI, Agno, Pydantic, Streamdown, SSE | Typed tools, structured events, citations, and durable memory |
+| **AI providers** | Vertex Gemini 2.5 Flash, OpenAI, Groq | Multimodal generation with retry-aware provider fallback |
+| **Application data** | TiDB/MySQL, checksum-verified SQL migrations | Transactional classrooms, submissions, reviews, memory, and audit data |
+| **Identity and files** | Appwrite | Authentication and permission-scoped private storage |
+| **Deployment** | Docker, Render Blueprint | Reproducible web and agent deployment as one service |
+| **Quality gates** | Vitest, Playwright, pytest, ESLint | Unit, contract, live, accessibility, and agent verification |
 
 ## Run locally
 
@@ -286,16 +294,16 @@ Codex was the engineering environment and collaborator; GPT-5.6 was the reasonin
 
 ### Decisions made together
 
-| Decision | Why we chose it |
-| --- | --- |
-| Teacher-authoritative grading | AI accelerates review but never silently publishes a grade. |
-| Vertex primary, OpenAI/Groq fallback | Provider portability and resilience without crossing safety or billing boundaries. |
-| One private Appwrite bucket | Works within the free tier while retaining file-level permissions. |
-| TiDB as application source of truth | Keeps classroom, memory, conversation, and audit state transactional. |
-| Typed internal tools instead of raw SQL tools | Limits agent authority and makes every call validatable and auditable. |
-| Application encryption key on Render | Removes the Cloud KMS dependency for this single-service deployment while keeping user keys encrypted at rest. |
-| Inline evaluation | Removes Cloud Tasks from the hackathon deployment and keeps setup reproducible. |
-| One Render container | Lets judges run or deploy the complete web and agent system from one repository and one service. |
+| Product or engineering choice | Principle | Why it matters |
+| --- | --- | --- |
+| **Teacher-authoritative grading** | Human control | AI accelerates review but never silently publishes a grade. |
+| **Vertex primary, OpenAI/Groq fallback** | Resilience | Retry-aware fallback improves availability without crossing safety or billing boundaries. |
+| **Typed internal tools, not raw SQL** | Least authority | Every agent action remains constrained, validatable, and auditable. |
+| **TiDB as the source of truth** | Transactional integrity | Classroom, memory, conversation, and audit state stay consistent. |
+| **One private Appwrite bucket** | Permission-scoped storage | File-level access controls remain practical on the free tier. |
+| **Application-level key encryption** | Secret protection | User API keys remain encrypted at rest without adding Cloud KMS to the single-service demo. |
+| **Inline evaluation** | Reproducibility | The hackathon deployment avoids a Cloud Tasks dependency. |
+| **One Render container** | Judge-friendly deployment | The complete web and agent system runs from one repository and one service. |
 
 GPT-5.6 was especially valuable for long-context repository reasoning: it kept frontend, Python agent, migrations, deployment files, and live production evidence in one working model. We retained human control over scope, product priorities, credentials, external accounts, and sensitive production actions. Codex proposed and implemented; we reviewed the tradeoffs, selected the deployment and UX direction, supplied credentials through secure platform settings, and approved releases.
 
@@ -324,16 +332,6 @@ Vio began as a learning workspace with several disconnected AI flows. During Bui
 | Renderer-heavy Learning Script Studio | Removed native rendering infrastructure to keep the product deployable and maintainable |
 
 The public demo should show this progression rather than a collection of disconnected AI features.
-
-## Build Week submission checklist
-
-- [x] Working Education-track application
-- [x] Public source repository with reproducible setup and test commands
-- [x] Sample-data guidance without mocked grading records
-- [x] Clear Codex and GPT-5.6 collaboration narrative
-- [ ] Public YouTube demo shorter than three minutes (record before submitting)
-- [ ] Add the `/feedback` Codex Session ID to the Devpost form (the ID is intentionally not committed)
-- [ ] Confirm the repository license and final judging access before submitting
 
 ## Security notes
 
@@ -368,3 +366,15 @@ Dockerfile.render        Combined web + agent production image
 ## License and submission
 
 This repository is the source submission for OpenAI Build Week's Education track. Add the repository's chosen license before final Devpost submission if public judging requires reuse terms.
+
+---
+
+<div align="center">
+
+### Vio
+
+**AI proposes. Teachers decide. Students receive feedback they can trust.**
+
+[Open the live app](https://vio-pcuh.onrender.com)
+
+</div>
