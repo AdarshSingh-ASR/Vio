@@ -8,13 +8,23 @@
 [![Track](https://img.shields.io/badge/OpenAI%20Build%20Week-Education-111827?style=for-the-badge)](https://openai.devpost.com/)
 [![Built with](https://img.shields.io/badge/Built%20with-Codex%20%2B%20GPT--5.6-111827?style=for-the-badge)](#how-we-built-vio-with-codex-and-gpt-56)
 
-[Architecture](ARCHITECTURE.md) · [Demo scenarios](docs/DEMO_SCENARIOS.md) · [Testing guide](docs/TESTING.md)
+[Live app](https://vio-pcuh.onrender.com) · [Architecture](ARCHITECTURE.md) · [Demo scenarios](docs/DEMO_SCENARIOS.md) · [Testing guide](docs/TESTING.md)
 
 [![Preview of the Vio landing page](https://vio-pcuh.onrender.com/opengraph-image)](https://vio-pcuh.onrender.com)
 
 Vio was built for the **Education** track of [OpenAI Build Week](https://openai.devpost.com/). It combines an AI study workspace with a classroom workflow: teachers create assignments, students submit text or files, AI prepares an evidence-backed evaluation, and the teacher reviews, overrides, and explicitly publishes the final result.
 
 The goal is not autonomous grading. It is faster, more consistent feedback with a clear human-in-the-loop boundary.
+
+## For judges: the 60-second path
+
+| | |
+| --- | --- |
+| **Open first** | [Launch the live app](https://vio-pcuh.onrender.com). The free-tier service may need about 60 seconds to wake up. |
+| **Core workflow** | Create a teacher account and classroom, publish an assignment, submit work from a student account, then review and publish the AI draft as the teacher. |
+| **Signature moment** | Change an AI-proposed score or feedback field, record the reason, and publish. The student sees nothing as final before teacher approval. |
+| **What this proves** | Vio evaluates an immutable submission, cites evidence, preserves teacher authority, and audits the decision instead of silently auto-grading. |
+| **Repeatable script** | Follow [docs/DEMO_SCENARIOS.md](docs/DEMO_SCENARIOS.md) for exact prompts, expected states, and recovery behavior. |
 
 ## The 30-second story
 
@@ -27,6 +37,20 @@ Most AI grading products end with a score. Vio ends with a **teacher decision**.
 5. Nothing is shown as final until the teacher explicitly publishes it.
 
 This is Vio's product promise: **AI proposes; teachers dispose.**
+
+## The story behind Vio
+
+Vio did not begin as a hackathon idea. It was one of my first serious coding projects, built as a personal learning companion while I was still learning how to turn an idea into a working product.
+
+When I started thinking about what to build for the Education track, I asked my Japanese language teacher a simple question: **“What should exist that would make everyday life easier for you, both as a teacher and as a student?”**
+
+She described a problem hidden inside an ordinary routine. Students send homework through messages every day, filling her storage with files. She then has to check every conversation manually, work out who submitted, identify who did not, and keep separate notes so nobody is missed. The work is repetitive, difficult to track, and takes time away from teaching.
+
+That conversation changed Vio's direction. The foundation of a learning platform already existed, but the classroom workflow did not. I realized Vio could become the place where students submit work, teachers see submission status at a glance, and AI prepares evidence-backed feedback without taking the final decision away from the teacher.
+
+There was one catch: because the original Vio was built near the beginning of my coding journey, its architecture had grown messy and its AI assistant needed a major rethink. Instead of adding one more feature on top, I decided to rebuild the foundations. Working with Codex powered by GPT-5.6, I reorganized the codebase, consolidated the AI layer, and built the classroom and review workflow. The first major implementation pass completed roughly 80% of my planned rebuild, which surprised me. I then reviewed the result, made the product decisions, tested the teacher/student boundaries, debugged production failures, tightened security, and refined the experience through repeated deployments.
+
+Vio's most important feature therefore came from a real teacher's everyday problem, while its rebuild became an experiment in how far one person can go when human judgment and an AI engineering collaborator work together.
 
 ## Why Vio
 
@@ -248,7 +272,7 @@ The unit suite does not require live AI credentials. Infrastructure, teacher/stu
 
 ## How we built Vio with Codex and GPT-5.6
 
-Codex with GPT-5.6 was a hands-on engineering collaborator throughout the upgrade, not a one-shot code generator. The collaboration followed a repeated loop: inspect the repository, propose a phased plan, implement a bounded change, run tests, deploy, inspect real production behavior, and repair issues using concrete logs.
+Codex was the engineering environment and collaborator; GPT-5.6 was the reasoning model used through Codex. This was not a one-shot generation. Our repeated loop was: inspect the repository, propose a phased plan, implement a bounded change, run tests, deploy, inspect real production behavior, and repair issues using concrete logs.
 
 ### Where Codex accelerated the work
 
