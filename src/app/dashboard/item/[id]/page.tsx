@@ -281,6 +281,7 @@ const FileViewerPage = () => {
         url={currentItem.url}
         fileType={currentItem.fileType}
         fileName={currentItem.name}
+        fallbackContent={currentItem.extractedContent || currentItem.content}
       />
     );
   } else {

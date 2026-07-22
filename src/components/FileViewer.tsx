@@ -8,6 +8,7 @@ interface FileViewerProps {
   url: string;
   fileType?: string;
   fileName?: string;
+  fallbackContent?: string | null;
 }
 
 const getExt = (name: string = '') => name.split('.').pop()?.toLowerCase() || '';
@@ -32,7 +33,7 @@ function getCloudinaryPdfAsImageUrl(url: string, page: number = 1, options: stri
   return imageUrl;
 }
 
-const FileViewer: React.FC<FileViewerProps> = ({ url, fileType, fileName }) => {
+const FileViewer: React.FC<FileViewerProps> = ({ url, fileType, fileName, fallbackContent }) => {
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
   const [textContent, setTextContent] = useState<string | null>(null);
   const [docxHtml, setDocxHtml] = useState<string | null>(null);
@@ -56,13 +57,22 @@ const FileViewer: React.FC<FileViewerProps> = ({ url, fileType, fileName }) => {
           const arrayBuffer = await res.arrayBuffer();
           try {
             const mammoth = await import('mammoth');
-            const { value: html } = await mammoth.convertToHtml({ arrayBuffer });
+            const convertToHtml = mammoth.convertToHtml || mammoth.default?.convertToHtml;
+            if (!convertToHtml) throw new Error('Word preview converter is unavailable');
+            const { value: html } = await convertToHtml({ arrayBuffer });
             if (!revoked) setDocxHtml(html);
           } catch (e) {
-            if (!revoked) setDocxHtml(null);
+            if (!revoked) {
+              if (fallbackContent?.trim()) setTextContent(fallbackContent);
+              else setError('Could not preview this Word document. You can still download it.');
+            }
           }
         })
-        .catch(() => setError('Could not load Word document.'));
+        .catch(() => {
+          if (revoked) return;
+          if (fallbackContent?.trim()) setTextContent(fallbackContent);
+          else setError('Could not load Word document.');
+        });
       return () => { revoked = true; };
     }
 
@@ -124,7 +134,7 @@ const FileViewer: React.FC<FileViewerProps> = ({ url, fileType, fileName }) => {
       if (blobUrl) URL.revokeObjectURL(blobUrl);
     };
     // eslint-disable-next-line
-  }, [url, fileType, fileName]);
+  }, [url, fileType, fileName, fallbackContent]);
 
   if (error) return <div className="text-red-500">{error}</div>;
   if (docxHtml !== null) {
