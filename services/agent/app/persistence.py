@@ -1,5 +1,6 @@
 import json
 import os
+import ssl
 import time
 import uuid
 from contextlib import contextmanager
@@ -7,6 +8,17 @@ from typing import Any, Iterator
 from urllib.parse import unquote, urlparse
 
 import pymysql
+
+
+def _tls_enabled() -> bool:
+    return os.getenv("TIDB_SSL", "true").lower() != "false"
+
+
+def _tls_context() -> ssl.SSLContext | None:
+    if not _tls_enabled():
+        return None
+    ca_file = os.getenv("TIDB_SSL_CA")
+    return ssl.create_default_context(cafile=ca_file) if ca_file else ssl.create_default_context()
 
 
 def _connection() -> pymysql.Connection:
@@ -19,7 +31,7 @@ def _connection() -> pymysql.Connection:
             user=unquote(parsed.username or "root"),
             password=unquote(parsed.password or ""),
             database=parsed.path.lstrip("/") or os.getenv("TIDB_DATABASE", "vio_database"),
-            ssl={} if os.getenv("TIDB_SSL", "true").lower() == "true" else None,
+            ssl=_tls_context(),
             cursorclass=pymysql.cursors.DictCursor,
             autocommit=False,
         )
@@ -29,7 +41,7 @@ def _connection() -> pymysql.Connection:
         user=os.getenv("TIDB_USER", "root"),
         password=os.getenv("TIDB_PASSWORD", ""),
         database=os.getenv("TIDB_DATABASE", "vio_database"),
-        ssl={} if os.getenv("TIDB_SSL", "true").lower() == "true" else None,
+        ssl=_tls_context(),
         cursorclass=pymysql.cursors.DictCursor,
         autocommit=False,
     )

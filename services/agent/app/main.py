@@ -22,6 +22,24 @@ from .transcription import transcribe_media
 app = FastAPI(title="Vio Agent Service", version="1.0.0")
 
 
+def secure_database_url(url: str) -> str:
+    if os.getenv("TIDB_SSL", "true").lower() == "false":
+        return url
+    if "ssl_ca=" in url or "ssl_verify_cert=" in url:
+        return url
+    separator = "&" if "?" in url else "?"
+    ca_file = os.getenv("TIDB_SSL_CA", "/etc/ssl/certs/ca-certificates.crt")
+    return f"{url}{separator}ssl_ca={ca_file}&ssl_verify_cert=true&ssl_verify_identity=true"
+
+
+def record_event_safely(run_id: str, event_type: str, payload: dict[str, Any]) -> None:
+    try:
+        record_event(run_id, event_type, payload)
+    except Exception as exc:
+        # Observability must never terminate an otherwise recoverable SSE response.
+        print({"event": "agent.persistence_failed", "event_type": event_type, "error_code": type(exc).__name__})
+
+
 @app.middleware("http")
 async def trace_requests(request: Request, call_next):
     supplied = request.headers.get("X-Vio-Trace-Id", "")[:64]
@@ -77,7 +95,7 @@ def database() -> MySQLDb | None:
         return None
     schema = urlparse(url.replace("mysql+pymysql", "mysql")).path.lstrip("/") or os.getenv("TIDB_DATABASE", "vio_database")
     return MySQLDb(
-        db_url=url,
+        db_url=secure_database_url(url),
         db_schema=schema,
         session_table="agno_sessions",
         memory_table="agno_memories",
@@ -156,15 +174,15 @@ async def stream_run(agent: Agent, request: AgentRunRequest, context: AgentConte
                 requirements = record_pause(run_id, context.user_id, list(getattr(event, "active_requirements", []) or []))
                 payload = {"type": "approval.required", "runId": run_id, "requirements": requirements}
             if payload:
-                record_event(request.run_id, str(payload["type"]), payload)
+                record_event_safely(request.run_id, str(payload["type"]), payload)
                 yield f"data: {json.dumps(payload, default=str)}\n\n"
                 for citation in payload.get("citations", []):
                     citation_payload = {"type": "citation", **citation}
-                    record_event(request.run_id, "citation", citation_payload)
+                    record_event_safely(request.run_id, "citation", citation_payload)
                     yield f"data: {json.dumps(citation_payload, default=str)}\n\n"
     except Exception as exc:
         payload = {"type": "error", "message": "The AI provider is temporarily unavailable.", "code": type(exc).__name__, "recoverable": True}
-        record_event(request.run_id, "error", payload)
+        record_event_safely(request.run_id, "error", payload)
         yield f"data: {json.dumps(payload)}\n\n"
 
 

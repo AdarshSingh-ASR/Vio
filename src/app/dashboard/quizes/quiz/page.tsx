@@ -4,6 +4,7 @@ import { FileText, ChevronRight, Play, Clock, CheckCircle, X, ArrowLeft } from '
 import { useAuth } from "@/context/AuthContext";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { getDisplayHostname } from "@/lib/display-url";
 
 type DashboardItem = {
   id: string;
@@ -446,8 +447,9 @@ const QuizPageContent = () => {
           </div>
         ) : (
           <div className="space-y-2">
-            {items.map((item) => (
-              <button
+            {items.map((item) => {
+              const hostname = getDisplayHostname(item.url);
+              return <button
                 key={item.id}
                 onClick={() => setSelectedItem(item)}
                 className={`w-full text-left p-4 rounded-lg border transition-all ${
@@ -461,16 +463,16 @@ const QuizPageContent = () => {
                     <div className="text-sm font-medium text-foreground">
                       {item.displayName || item.title || 'Untitled'}
                     </div>
-                    {item.url && (
+                    {hostname && (
                       <div className="text-xs text-muted-foreground mt-1">
-                        {new URL(item.url).hostname}
+                        {hostname}
                       </div>
                     )}
                   </div>
                   <ChevronRight className="w-4 h-4 text-muted-foreground" />
                 </div>
-              </button>
-            ))}
+              </button>;
+            })}
           </div>
         )}
       </div>
@@ -560,4 +562,4 @@ const QuizPage = () => {
   );
 };
 
-export default QuizPage; 
+export default QuizPage;

@@ -4,6 +4,7 @@ import { Headphones, Play, Pause, SkipForward, SkipBack, Volume2, ArrowLeft, Che
 import { useAuth } from "@/context/AuthContext";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { getDisplayHostname } from "@/lib/display-url";
 
 type DashboardItem = {
   id: string;
@@ -689,8 +690,9 @@ const ListeningTestPage = () => {
           </div>
         ) : (
           <div className="space-y-2">
-            {items.map((item) => (
-              <button
+            {items.map((item) => {
+              const hostname = getDisplayHostname(item.url);
+              return <button
                 key={item.id}
                 onClick={() => setSelectedItem(item)}
                 className={`w-full text-left p-4 rounded-lg border transition-all ${
@@ -704,16 +706,16 @@ const ListeningTestPage = () => {
                     <div className="text-sm font-medium text-foreground">
                       {item.displayName || item.title || 'Untitled'}
                     </div>
-                    {item.url && (
+                    {hostname && (
                       <div className="text-xs text-muted-foreground mt-1">
-                        {new URL(item.url).hostname}
+                        {hostname}
                       </div>
                     )}
                   </div>
                   <Headphones className="w-4 h-4 text-muted-foreground" />
                 </div>
-              </button>
-            ))}
+              </button>;
+            })}
           </div>
         )}
       </div>
@@ -775,4 +777,4 @@ const ListeningTestPage = () => {
   );
 };
 
-export default ListeningTestPage; 
+export default ListeningTestPage;

@@ -40,6 +40,7 @@ export default function CustomChatSidebar({ onClose }: { onClose: () => void }) 
   const [items, setItems] = useState<DashboardItem[]>([]);
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
   const [showFiles, setShowFiles] = useState(false);
+  const [fileContextError, setFileContextError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const chatId = user?.id ? `vio-chat-${user.id}` : "vio-chat-session";
@@ -63,7 +64,16 @@ export default function CustomChatSidebar({ onClose }: { onClose: () => void }) 
 
   useEffect(() => {
     const loadItems = async () => {
-      try { const response = await getAuthenticatedFetch()("/api/dashboard/items?workspaceId=default"); const data = await response.json(); if (response.ok) setItems(data.items || []); } catch { /* optional context */ }
+      try {
+        setFileContextError(null);
+        const response = await getAuthenticatedFetch()("/api/dashboard/items?workspaceId=default");
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || "Could not load saved files");
+        setItems(data.items || []);
+      } catch (caught) {
+        setItems([]);
+        setFileContextError(caught instanceof Error ? caught.message : "Could not load saved files");
+      }
     };
     void loadItems();
   }, [getAuthenticatedFetch]);
@@ -85,23 +95,27 @@ export default function CustomChatSidebar({ onClose }: { onClose: () => void }) 
       activeRunId = response.headers.get("X-Agent-Run-Id");
       if (!response.ok) { const body = await response.json().catch(() => ({})); throw new Error(body.error || "The AI service is unavailable"); }
       if (!response.body) throw new Error("Streaming response was unavailable");
-      const reader = response.body.getReader(); const decoder = new TextDecoder(); let buffer = "";
+      const reader = response.body.getReader(); const decoder = new TextDecoder(); let buffer = ""; let receivedContent = false; let receivedTerminalEvent = false;
+      const consumePacket = (packet: string) => {
+        const line = packet.split("\n").find((part) => part.startsWith("data:")); if (!line) return;
+        const event = JSON.parse(line.slice(5).trim());
+        if (event.type === "message.delta") { receivedContent = receivedContent || Boolean(event.delta); updateAssistant(assistantId, (message) => ({ ...message, content: message.content + (event.delta || "") })); }
+        if (event.type === "tool.started") updateAssistant(assistantId, (message) => ({ ...message, toolEvents: [...(message.toolEvents || []), { type: "started", tool: event.tool }] }));
+        if (event.type === "tool.completed") updateAssistant(assistantId, (message) => ({ ...message, toolEvents: [...(message.toolEvents || []).filter((item) => !(item.tool === event.tool && item.type === "started")), { type: "completed", tool: event.tool }] }));
+        if (event.type === "citation") updateAssistant(assistantId, (message) => ({ ...message, citations: [...(message.citations || []), { label: event.label, title: event.title, locator: event.locator, sourceType: event.sourceType }] }));
+        if (event.type === "approval.required") { receivedTerminalEvent = true; updateAssistant(assistantId, (message) => ({ ...message, approval: { runId: event.runId, tool: event.requirements?.[0]?.tool || "sensitive action", arguments: event.requirements?.[0]?.arguments } })); }
+        if (event.type === "done") { receivedTerminalEvent = true; updateAssistant(assistantId, (message) => ({ ...message, provider: event.provider || "vertex" })); }
+        if (event.type === "error") throw new Error(event.message || "The agent run failed");
+      };
       while (true) {
         const { done, value } = await reader.read(); if (done) break;
         buffer += decoder.decode(value, { stream: true });
         const packets = buffer.split("\n\n"); buffer = packets.pop() || "";
-        for (const packet of packets) {
-          const line = packet.split("\n").find((part) => part.startsWith("data:")); if (!line) continue;
-          const event = JSON.parse(line.slice(5).trim());
-          if (event.type === "message.delta") updateAssistant(assistantId, (message) => ({ ...message, content: message.content + (event.delta || "") }));
-          if (event.type === "tool.started") updateAssistant(assistantId, (message) => ({ ...message, toolEvents: [...(message.toolEvents || []), { type: "started", tool: event.tool }] }));
-          if (event.type === "tool.completed") updateAssistant(assistantId, (message) => ({ ...message, toolEvents: [...(message.toolEvents || []).filter((item) => !(item.tool === event.tool && item.type === "started")), { type: "completed", tool: event.tool }] }));
-          if (event.type === "citation") updateAssistant(assistantId, (message) => ({ ...message, citations: [...(message.citations || []), { label: event.label, title: event.title, locator: event.locator, sourceType: event.sourceType }] }));
-          if (event.type === "approval.required") updateAssistant(assistantId, (message) => ({ ...message, approval: { runId: event.runId, tool: event.requirements?.[0]?.tool || "sensitive action", arguments: event.requirements?.[0]?.arguments } }));
-          if (event.type === "done") updateAssistant(assistantId, (message) => ({ ...message, provider: event.provider || "vertex" }));
-          if (event.type === "error") throw new Error(event.message || "The agent run failed");
-        }
+        packets.forEach(consumePacket);
       }
+      buffer += decoder.decode();
+      if (buffer.trim()) consumePacket(buffer);
+      if (!receivedContent && !receivedTerminalEvent) throw new Error("The AI service ended before returning a response");
     } catch (caught) {
       const message = caught instanceof Error ? caught.message : "Could not complete the request";
       if (activeRunId && message !== "The user aborted a request.") {
@@ -159,7 +173,7 @@ export default function CustomChatSidebar({ onClose }: { onClose: () => void }) 
       </div><div className="mt-1 flex items-center gap-2 px-1 text-[10px] text-muted-foreground">{message.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}{message.provider && <Badge variant="outline" className="h-4 px-1 text-[9px]">{message.provider}</Badge>}{message.role === "assistant" && message.content && <button onClick={() => void navigator.clipboard.writeText(message.content)} title="Copy response"><Copy className="h-3 w-3" /></button>}</div></div></div>)}{loading && !messages[messages.length - 1]?.content ? <div className="flex items-center gap-2 px-10 text-xs text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" />Thinking and selecting tools…</div> : null}<div ref={endRef} /></div></ScrollArea>
     <div aria-live="polite" className="sr-only">{loading ? "Vio is generating a response" : error || ""}</div>
     {error && <div className="mx-3 mb-2 flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-2 text-xs text-destructive"><XCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" /><span className="flex-1">{error}</span>{retryPrompt && <Button size="sm" variant="outline" className="h-6" onClick={() => void send(retryPrompt)}>Retry</Button>}<button onClick={() => setError(null)}><X className="h-3.5 w-3.5" /></button></div>}
-    {showFiles && <div className="border-t bg-muted/20 p-2"><div className="mb-2 flex items-center justify-between"><p className="text-xs font-medium">Reference saved files</p><button onClick={() => setShowFiles(false)}><ChevronDown className="h-4 w-4" /></button></div><ScrollArea className="max-h-32"><div className="space-y-1">{items.length ? items.map((item) => { const itemId = item.id || item.$id || ""; const selected = selectedItems.includes(itemId); return <button key={itemId} onClick={() => setSelectedItems((current) => selected ? current.filter((id) => id !== itemId) : [...current, itemId])} className={cn("flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs hover:bg-muted", selected && "bg-primary/10 text-primary")}><FileText className="h-3.5 w-3.5" /><span className="flex-1 truncate">{item.displayName || item.title || "Untitled"}</span>{selected && <Check className="h-3.5 w-3.5" />}</button>; }) : <p className="py-3 text-center text-xs text-muted-foreground">No saved files</p>}</div></ScrollArea></div>}
+    {showFiles && <div className="border-t bg-muted/20 p-2"><div className="mb-2 flex items-center justify-between"><p className="text-xs font-medium">Reference saved files</p><button onClick={() => setShowFiles(false)}><ChevronDown className="h-4 w-4" /></button></div><ScrollArea className="max-h-32"><div className="space-y-1">{fileContextError ? <p className="py-3 text-center text-xs text-destructive">{fileContextError}</p> : items.length ? items.map((item) => { const itemId = item.id || item.$id || ""; const selected = selectedItems.includes(itemId); return <button key={itemId} onClick={() => setSelectedItems((current) => selected ? current.filter((id) => id !== itemId) : [...current, itemId])} className={cn("flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs hover:bg-muted", selected && "bg-primary/10 text-primary")}><FileText className="h-3.5 w-3.5" /><span className="flex-1 truncate">{item.displayName || item.title || "Untitled"}</span>{selected && <Check className="h-3.5 w-3.5" />}</button>; }) : <p className="py-3 text-center text-xs text-muted-foreground">No saved files</p>}</div></ScrollArea></div>}
     <div className="border-t p-2"><div className="mb-2 flex gap-1 overflow-x-auto">{quickActions.map((action) => <Button key={action.label} variant="ghost" size="sm" className="h-7 shrink-0 text-[11px]" onClick={() => setInput(action.prompt)}>{action.label}</Button>)}</div><div className="flex items-end gap-2 rounded-xl border bg-card p-1.5 focus-within:ring-1 focus-within:ring-ring"><Button variant={selectedItems.length ? "secondary" : "ghost"} size="icon" className="h-8 w-8 shrink-0" onClick={() => setShowFiles((value) => !value)} title="Add file context"><Plus className="h-4 w-4" /></Button><Textarea value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void send(input); } }} placeholder="Ask Vio…" className="max-h-28 min-h-8 resize-none border-0 bg-transparent px-1 py-1.5 text-sm shadow-none focus-visible:ring-0" rows={1} />{loading ? <Button size="icon" variant="destructive" className="h-8 w-8 shrink-0" onClick={() => abortRef.current?.abort()}><X className="h-4 w-4" /></Button> : <Button size="icon" className="h-8 w-8 shrink-0" disabled={!input.trim()} onClick={() => void send(input)}><Send className="h-4 w-4" /></Button>}</div><p className="mt-1.5 text-center text-[10px] text-muted-foreground">AI can make mistakes. Sensitive actions require confirmation.</p></div>
   </div>;
 }
